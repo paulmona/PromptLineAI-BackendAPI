@@ -1,0 +1,44 @@
+{
+  "device_id": "b70e507e-b843-4979-be70-eea4f175bb05",
+  "events": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "ts": "2026-01-16T17:00:00.000Z",
+      "tool": "chatgpt",
+      "event_type": "visit",
+      "url_host": "chatgpt.com",
+      "file_ext": null,
+      "file_size_kb": null,
+      "file_name": null,
+      "prompt_len_bucket": null,
+      "has_code_block": null,
+      "paste_detected": null
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "ts": "2026-01-16T17:00:05.000Z",
+      "tool": "chatgpt",
+      "event_type": "prompt_submit",
+      "url_host": "chatgpt.com",
+      "file_ext": null,
+      "file_size_kb": null,
+      "file_name": null,
+      "prompt_len_bucket": "200-1000",
+      "has_code_block": true,
+      "paste_detected": false
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "ts": "2026-01-16T17:00:10.000Z",
+      "tool": "chatgpt",
+      "event_type": "file_selected",
+      "url_host": "chatgpt.com",
+      "file_ext": "pdf",
+      "file_size_kb": 1850,
+      "file_name": "document.pdf",
+      "prompt_len_bucket": null,
+      "has_code_block": null,
+      "paste_detected": null
+    }
+  ]
+}

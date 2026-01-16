@@ -1,0 +1,420 @@
+openapi: 3.0.3
+info:
+  title: PromptLineAI Backend API
+  description: |
+    Local-first POC backend API for PromptLineAI event ingestion and reporting.
+    
+    This API receives events from the PromptLineAI Chrome extension and provides
+    summary statistics. Events are ingested idempotently and stored in Postgres.
+    
+    **Authentication**: All endpoints except `/healthz` require the `X-POC-TOKEN` header.
+  version: 0.1.0
+  contact:
+    name: PromptLineAI
+
+servers:
+  - url: http://127.0.0.1:8787
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Ingestion
+    description: Event ingestion endpoints
+  - name: Reporting
+    description: Summary and reporting endpoints
+
+paths:
+  /healthz:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns server health status and database connectivity
+      operationId: healthz
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                ok: true
+                db: 'connected'
+
+  /ingest:
+    post:
+      tags:
+        - Ingestion
+      summary: Ingest events
+      description: |
+        Ingests events from the Chrome extension. Events are processed idempotently -
+        re-sending the same event UUID will not create duplicate rows.
+        
+        **Authentication**: Requires `X-POC-TOKEN` header matching server configuration.
+        
+        **Validation**: 
+        - Maximum 50 events per request
+        - `event_type` must be one of: `visit`, `prompt_submit`, `file_selected`
+        - Invalid `tool` values are mapped to `unknown`
+        - Unknown event fields are stored in `events.extra` JSONB column
+      operationId: ingest
+      security:
+        - POCToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+            example:
+              device_id: 'b70e507e-b843-4979-be70-eea4f175bb05'
+              events:
+                - id: '550e8400-e29b-41d4-a716-446655440000'
+                  ts: '2026-01-16T17:00:00.000Z'
+                  tool: 'chatgpt'
+                  event_type: 'visit'
+                  url_host: 'chatgpt.com'
+                  file_ext: null
+                  file_size_kb: null
+                  file_name: null
+                  prompt_len_bucket: null
+                  has_code_block: null
+                  paste_detected: null
+                - id: '550e8400-e29b-41d4-a716-446655440001'
+                  ts: '2026-01-16T17:00:05.000Z'
+                  tool: 'chatgpt'
+                  event_type: 'prompt_submit'
+                  url_host: 'chatgpt.com'
+                  file_ext: null
+                  file_size_kb: null
+                  file_name: null
+                  prompt_len_bucket: '200-1000'
+                  has_code_block: true
+                  paste_detected: false
+      responses:
+        '200':
+          description: Events ingested successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              example:
+                attempted: 2
+                inserted: 2
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Invalid request body'
+                details:
+                  events:
+                    _errors:
+                      - 'Array must contain at most 50 element(s)'
+        '401':
+          description: Invalid or missing authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Invalid or missing X-POC-TOKEN'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Internal server error'
+                message: 'Failed to create or find org with name: default'
+
+  /summary:
+    get:
+      tags:
+        - Reporting
+      summary: Get summary statistics
+      description: |
+        Returns summary statistics for events within a time range. All statistics
+        are filtered by the server's default organization (configured via `DEFAULT_ORG_NAME`).
+        
+        **Time Bucketing**:
+        - `24h`: Hourly buckets
+        - `7d` or `30d`: Daily buckets
+      operationId: summary
+      parameters:
+        - name: range
+          in: query
+          description: Time range for summary statistics
+          required: false
+          schema:
+            type: string
+            enum: ['24h', '7d', '30d']
+            default: '24h'
+          example: '24h'
+      responses:
+        '200':
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummaryResponse'
+              example:
+                range: '24h'
+                total_events: 150
+                unique_devices: 5
+                tools:
+                  - tool: 'chatgpt'
+                    count: 100
+                  - tool: 'claude'
+                    count: 50
+                event_types:
+                  - event_type: 'visit'
+                    count: 50
+                  - event_type: 'prompt_submit'
+                    count: 100
+                time_buckets:
+                  - bucket: '2026-01-16 17:00:00+00'
+                    count: 10
+                  - bucket: '2026-01-16 18:00:00+00'
+                    count: 15
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Invalid query parameters'
+                details:
+                  range:
+                    _errors:
+                      - "Invalid enum value. Expected '24h' | '7d' | '30d', received 'invalid'"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Internal server error'
+                message: 'Database connection failed'
+
+components:
+  securitySchemes:
+    POCToken:
+      type: apiKey
+      in: header
+      name: X-POC-TOKEN
+      description: POC authentication token (configured via POC_TOKEN environment variable)
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - ok
+        - db
+      properties:
+        ok:
+          type: boolean
+          description: Server health status
+          example: true
+        db:
+          type: string
+          enum: ['connected', 'disconnected']
+          description: Database connection status
+          example: 'connected'
+
+    IngestRequest:
+      type: object
+      required:
+        - device_id
+        - events
+      properties:
+        device_id:
+          type: string
+          format: uuid
+          description: Unique device identifier from the Chrome extension
+          example: 'b70e507e-b843-4979-be70-eea4f175bb05'
+        events:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Array of event objects (1-50 events per request)
+          items:
+            $ref: '#/components/schemas/Event'
+
+    Event:
+      type: object
+      required:
+        - id
+        - ts
+        - tool
+        - event_type
+        - url_host
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique event identifier
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        ts:
+          type: string
+          format: date-time
+          description: Event timestamp in ISO 8601 format (UTC)
+          example: '2026-01-16T17:00:00.000Z'
+        tool:
+          type: string
+          enum: ['chatgpt', 'claude', 'gemini', 'grok', 'unknown']
+          description: AI tool identifier (invalid values are mapped to 'unknown')
+          example: 'chatgpt'
+        event_type:
+          type: string
+          enum: ['visit', 'prompt_submit', 'file_selected']
+          description: Type of event (must match exactly or request is rejected)
+          example: 'visit'
+        url_host:
+          type: string
+          description: Hostname where event occurred
+          example: 'chatgpt.com'
+        file_ext:
+          type: string
+          nullable: true
+          description: File extension (only for file_selected events)
+          example: 'pdf'
+        file_size_kb:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: File size in kilobytes (only for file_selected events)
+          example: 1850
+        file_name:
+          type: string
+          nullable: true
+          description: Full filename (only for file_selected events)
+          example: 'document.pdf'
+        prompt_len_bucket:
+          type: string
+          enum: ['0-200', '200-1000', '1000+']
+          nullable: true
+          description: Prompt length category (only for prompt_submit events)
+          example: '200-1000'
+        has_code_block:
+          type: boolean
+          nullable: true
+          description: Whether code blocks were detected (only for prompt_submit events)
+          example: true
+        paste_detected:
+          type: boolean
+          nullable: true
+          description: Whether paste was detected before submission (only for prompt_submit events)
+          example: false
+
+    IngestResponse:
+      type: object
+      required:
+        - attempted
+        - inserted
+      properties:
+        attempted:
+          type: integer
+          description: Number of events attempted to insert
+          example: 2
+        inserted:
+          type: integer
+          description: Number of events actually inserted (duplicates are ignored)
+          example: 2
+
+    SummaryResponse:
+      type: object
+      required:
+        - range
+        - total_events
+        - unique_devices
+        - tools
+        - event_types
+        - time_buckets
+      properties:
+        range:
+          type: string
+          enum: ['24h', '7d', '30d']
+          description: Time range used for summary
+          example: '24h'
+        total_events:
+          type: integer
+          description: Total number of events in the time range
+          example: 150
+        unique_devices:
+          type: integer
+          description: Number of unique devices that generated events
+          example: 5
+        tools:
+          type: array
+          description: Event counts grouped by tool
+          items:
+            type: object
+            required:
+              - tool
+              - count
+            properties:
+              tool:
+                type: string
+                enum: ['chatgpt', 'claude', 'gemini', 'grok', 'unknown']
+                example: 'chatgpt'
+              count:
+                type: integer
+                example: 100
+        event_types:
+          type: array
+          description: Event counts grouped by event type
+          items:
+            type: object
+            required:
+              - event_type
+              - count
+            properties:
+              event_type:
+                type: string
+                enum: ['visit', 'prompt_submit', 'file_selected']
+                example: 'visit'
+              count:
+                type: integer
+                example: 50
+        time_buckets:
+          type: array
+          description: Event counts grouped by time bucket (hourly for 24h, daily for 7d/30d)
+          items:
+            type: object
+            required:
+              - bucket
+              - count
+            properties:
+              bucket:
+                type: string
+                description: Time bucket as ISO timestamp string
+                example: '2026-01-16 17:00:00+00'
+              count:
+                type: integer
+                example: 10
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: 'Invalid request body'
+        message:
+          type: string
+          description: Detailed error message (for 500 errors)
+          example: 'Failed to create or find org with name: default'
+        details:
+          type: object
+          description: Validation error details (for 400 errors)
+          additionalProperties: true
