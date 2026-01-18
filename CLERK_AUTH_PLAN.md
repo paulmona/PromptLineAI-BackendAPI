@@ -210,20 +210,22 @@ export async function getOrgByExternalId(externalOrgId: string): Promise<{ id: s
 - Store `CLERK_PUBLISHABLE_KEY` in env, use in frontend
 
 ### Token Acquisition Strategy
-1. **Include Clerk.js SDK** in HTML:
-   ```html
-   <script src="https://cdn.clerk.com/clerk.js"></script>
-   ```
+1. **Load Clerk.js SDK dynamically** via `public/auth.js`:
+   - The `/env.js` endpoint serves `CLERK_JS_URL` (defaults to `http://cdn.clerk.io/clerk.js`)
+   - `public/auth.js` dynamically loads Clerk.js from `CLERK_JS_URL` using a script tag with `async` and `crossorigin="anonymous"`
+   - Include in HTML:
+     ```html
+     <script src="/env.js"></script>
+     <script src="/assets/auth.js"></script>
+     ```
 2. **Initialize Clerk**:
    ```javascript
-   const clerk = new Clerk(CLERK_PUBLISHABLE_KEY);
-   await clerk.load();
+   await window.PromptLineAuth.initClerk();
    ```
 3. **Get Session Token** (in-memory only):
    ```javascript
-   const session = await clerk.session;
-   const token = await session?.getToken();
-   // Store in variable, NOT localStorage
+   const token = await window.PromptLineAuth.getToken();
+   // Returns null if not authenticated
    ```
 
 ### Fetch Wrapper
