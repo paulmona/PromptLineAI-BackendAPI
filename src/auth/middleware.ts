@@ -17,24 +17,48 @@ declare module 'fastify' {
 }
 
 async function resolveClerkOrgId(args: { clerkUserId: string; tokenOrgId: string | null }): Promise<string> {
-  if (args.tokenOrgId) return args.tokenOrgId;
+  if (args.tokenOrgId) {
+    logger.debug({ clerkUserId: args.clerkUserId, hasTokenOrgId: true }, 'Organization ID found in token, using it');
+    return args.tokenOrgId;
+  }
 
   // Fallback: if org_id claim is missing, fetch memberships and require exactly one org.
   // This keeps the invariant: each user belongs to exactly one org (no switching UI).
+  logger.debug({ clerkUserId: args.clerkUserId }, 'Organization ID not in token, fetching from Clerk API (fallback)');
+  
   const memberships = await clerkClient.users.getOrganizationMembershipList({
     userId: args.clerkUserId,
     limit: 10,
   });
+
+  logger.debug(
+    { 
+      clerkUserId: args.clerkUserId,
+      membershipCount: memberships.data?.length || 0,
+    },
+    'Fetched organization memberships from Clerk'
+  );
 
   const orgIds: string[] = memberships.data
     .map((m: any) => (m && m.organization && typeof m.organization.id === 'string' ? m.organization.id : null))
     .filter((x: string | null): x is string => typeof x === 'string' && x.length > 0);
 
   const unique: string[] = Array.from(new Set(orgIds));
+  
+  logger.debug(
+    { 
+      clerkUserId: args.clerkUserId,
+      uniqueOrgCount: unique.length,
+      orgIds: unique,
+    },
+    'Resolved organization IDs from memberships'
+  );
+
   if (unique.length !== 1) {
-    throw new Error('User must be assigned to exactly one organization');
+    throw new Error(`User must be assigned to exactly one organization, found ${unique.length}`);
   }
 
+  logger.debug({ clerkUserId: args.clerkUserId, resolvedOrgId: unique[0] }, 'Resolved organization ID from Clerk API');
   return unique[0];
 }
 
@@ -52,13 +76,28 @@ export async function requireClerkAuth(request: FastifyRequest, reply: FastifyRe
     return void reply.code(401).send({ error: 'Unauthorized' });
   }
 
+  // Log token prefix for debugging (first 20 chars only)
+  const tokenPrefix = token.length > 20 ? `${token.substring(0, 20)}...` : token.substring(0, token.length);
+  logger.debug({ tokenPrefix, tokenLength: token.length, path: request.url }, 'Processing authentication request');
+
   try {
     const { clerkUserId, tokenOrgId } = await verifyClerkBearerToken(token);
+    logger.debug(
+      { 
+        clerkUserId,
+        hasTokenOrgId: !!tokenOrgId,
+        tokenOrgIdPrefix: tokenOrgId ? tokenOrgId.substring(0, 20) + '...' : null,
+      },
+      'Token verified, resolving organization ID'
+    );
+    
     const clerkOrgId = await resolveClerkOrgId({ clerkUserId, tokenOrgId });
+    logger.debug({ clerkUserId, clerkOrgId }, 'Organization ID resolved');
 
     // Safe constrained org bootstrap: fetch canonical org metadata from Clerk (no guessing).
     const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
     if (!org?.name || !org?.slug) {
+      logger.warn({ clerkOrgId }, 'Organization metadata missing in Clerk');
       return void reply.code(403).send({ error: 'Organization metadata missing in Clerk' });
     }
 
@@ -81,19 +120,30 @@ export async function requireClerkAuth(request: FastifyRequest, reply: FastifyRe
       internalUserId: ensuredUser.id,
     };
   } catch (err) {
-    logger.warn(
-      { err: err instanceof Error ? err.message : String(err) },
-      'Clerk authentication failed or org context invalid'
-    );
+    // Log full error details for debugging
+    const errorDetails = {
+      errorType: err?.constructor?.name,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      errorStack: err instanceof Error ? err.stack : undefined,
+      tokenPrefix,
+      path: request.url,
+    };
+    
+    logger.warn(errorDetails, 'Clerk authentication failed or org context invalid');
 
     // Differentiate auth vs authorization:
     // - Invalid token => 401
     // - Valid token but no org/invalid org context => 403
     // We can't reliably distinguish all cases here without Clerk error typing, so:
     // - Missing org membership / multiple orgs => 403
-    // - Anything else from verify => 401
-    const message = err instanceof Error ? err.message : '';
-    if (message.includes('assigned to exactly one organization') || message.includes('Organization metadata')) {
+    // - Token verification errors => 401
+    // - Organization-related errors => 403
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      message.includes('assigned to exactly one organization') ||
+      message.includes('Organization metadata') ||
+      message.includes('org')
+    ) {
       return void reply.code(403).send({ error: message });
     }
     return void reply.code(401).send({ error: 'Unauthorized' });

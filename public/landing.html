@@ -52,6 +52,18 @@
       const tabSignIn = document.getElementById('tab-sign-in');
       const tabSignUp = document.getElementById('tab-sign-up');
 
+      // Prevent redirect loops: check if we've been redirected too many times
+      const redirectCount = sessionStorage.getItem('authRedirectCount') || '0';
+      const redirectCountNum = parseInt(redirectCount, 10);
+      if (redirectCountNum >= 3) {
+        // Too many redirects - clear counter and show error
+        sessionStorage.removeItem('authRedirectCount');
+        statusEl.textContent = 'Authentication error: Too many redirects. Please try signing out and signing in again.';
+        errorEl.style.display = 'block';
+        errorEl.textContent = 'There appears to be an authentication issue. Please sign out and try again.';
+        return;
+      }
+
       // Tab switching
       tabSignIn.addEventListener('click', () => {
         tabSignIn.classList.add('active');
@@ -79,6 +91,20 @@
           });
 
           if (res.status === 401) {
+            // Check if Clerk says user is signed in but backend rejects token
+            const clerkUser = window.Clerk?.user;
+            if (clerkUser) {
+              // User is signed in to Clerk but token is invalid - token mismatch issue
+              sessionStorage.setItem('authRedirectCount', String(redirectCountNum + 1));
+              statusEl.textContent = 'Authentication error: Token validation failed.';
+              errorEl.style.display = 'block';
+              errorEl.textContent = 'You are signed in, but the authentication token could not be verified. Please try signing out and signing in again.';
+              console.error('Token mismatch: Clerk user exists but /me returned 401');
+              return;
+            }
+            
+            // User is actually signed out
+            sessionStorage.removeItem('authRedirectCount');
             statusEl.textContent = 'You are signed out.';
             authContainer.classList.remove('hidden');
             // Mount components for sign-in
@@ -88,6 +114,7 @@
             return;
           }
           if (res.status === 403) {
+            sessionStorage.removeItem('authRedirectCount');
             statusEl.textContent = 'Signed in, but not assigned to an organization.';
             return;
           }
@@ -95,6 +122,8 @@
             throw new Error(`Failed to load /me: ${res.status}`);
           }
 
+          // Success - clear redirect counter and redirect to dashboard
+          sessionStorage.removeItem('authRedirectCount');
           const me = await res.json();
           const slug = me?.org?.slug;
           if (!slug) throw new Error('Missing org.slug in /me response');
@@ -102,6 +131,9 @@
           window.location.href = `/${encodeURIComponent(slug)}`;
           return;
         }
+        
+        // No token - clear redirect counter
+        sessionStorage.removeItem('authRedirectCount');
 
         // User is signed out - show embedded components
         statusEl.textContent = '';

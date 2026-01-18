@@ -133,6 +133,20 @@
     const session = window.Clerk.session;
     if (!session) return null;
     const token = await session.getToken();
+    
+    if (token) {
+      // Log token format for debugging (first 30 chars only, never log full token)
+      const tokenPrefix = token.length > 30 ? `${token.substring(0, 30)}...` : token.substring(0, token.length);
+      const parts = token.split('.');
+      console.log('[Clerk.js Loader] Token obtained:', {
+        length: token.length,
+        prefix: tokenPrefix,
+        parts: parts.length,
+        isJWT: parts.length === 3,
+        sessionExists: !!session,
+      });
+    }
+    
     return token || null;
   }
 

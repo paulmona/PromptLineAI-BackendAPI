@@ -74,24 +74,40 @@ export async function ensureOrgByExternalOrgId(args: {
   name: string;
   slug: string;
 }): Promise<{ id: string; slug: string | null; name: string }> {
-  const result = await db
+  // Check if org already exists
+  const existing = await db
+    .select({ id: orgs.id, slug: orgs.slug, name: orgs.name })
+    .from(orgs)
+    .where(eq(orgs.externalOrgId, args.externalOrgId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    // Org exists - update name, but preserve slug if it already exists (immutability)
+    const currentSlug = existing[0].slug;
+    const updated = await db
+      .update(orgs)
+      .set({
+        name: args.name,
+        // slug immutability: only fill when currently NULL
+        slug: currentSlug ?? args.slug,
+      })
+      .where(eq(orgs.id, existing[0].id))
+      .returning({ id: orgs.id, slug: orgs.slug, name: orgs.name });
+
+    return updated[0];
+  }
+
+  // Org doesn't exist - insert it
+  const inserted = await db
     .insert(orgs)
     .values({
       externalOrgId: args.externalOrgId,
       name: args.name,
       slug: args.slug,
     })
-    .onConflictDoUpdate({
-      target: orgs.externalOrgId,
-      set: {
-        name: sql`excluded.name`,
-        // slug immutability: only fill when currently NULL
-        slug: sql`coalesce(${orgs.slug}, excluded.slug)`,
-      },
-    })
     .returning({ id: orgs.id, slug: orgs.slug, name: orgs.name });
 
-  return result[0];
+  return inserted[0];
 }
 
 export async function getUserByExternalUid(externalUid: string): Promise<{ id: string; orgId: string | null } | null> {
