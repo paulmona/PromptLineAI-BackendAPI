@@ -6,8 +6,16 @@ config();
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(8787),
-  POC_TOKEN: z.string().min(1, 'POC_TOKEN is required'),
-  DEFAULT_ORG_NAME: z.string().default('default'),
+  // Clerk (dashboard auth)
+  CLERK_PUBLISHABLE_KEY: z.string().min(1, 'CLERK_PUBLISHABLE_KEY is required'),
+  CLERK_SECRET_KEY: z.string().min(1, 'CLERK_SECRET_KEY is required'),
+  // Optional: used by landing page sign-in link (Hosted Pages)
+  CLERK_SIGN_IN_URL: z.string().url().optional(),
+  CLERK_SIGN_UP_URL: z.string().url().optional(),
+
+  // Ingest key hashing pepper (HMAC). Treat as immutable for the POC.
+  INGEST_KEY_PEPPER: z.string().min(32, 'INGEST_KEY_PEPPER must be at least 32 characters'),
+
   DB_HOST: z.string().default('192.168.0.71'),
   DB_PORT: z.coerce.number().default(5432),
   DB_NAME: z.string().default('aicompliance'),

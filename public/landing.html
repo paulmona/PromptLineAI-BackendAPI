@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PromptLineAI</title>
+  <link rel="stylesheet" href="/assets/dashboard.css">
+  <style>
+    .landing { max-width: 720px; margin: 64px auto; padding: 0 16px; }
+    .landing h1 { margin-bottom: 8px; }
+    .landing p { color: #555; }
+    .landing .actions { margin-top: 24px; display: flex; gap: 12px; }
+    .btn { appearance: none; border: 1px solid #ddd; background: #111; color: #fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; text-decoration: none; font-weight: 600; }
+    .btn.secondary { background: #fff; color: #111; }
+    .status { margin-top: 16px; color: #555; }
+    .error { margin-top: 16px; color: #b42318; }
+  </style>
+</head>
+<body>
+  <div class="landing">
+    <h1>PromptLineAI</h1>
+    <p>Sign in to view your organization dashboard.</p>
+
+    <div class="actions">
+      <a id="sign-in-link" class="btn" href="#">Sign in</a>
+      <a id="sign-up-link" class="btn secondary" href="#">Sign up</a>
+    </div>
+
+    <div id="status" class="status">Checking session…</div>
+    <div id="error" class="error" style="display:none;"></div>
+  </div>
+
+  <script src="/env.js"></script>
+  <script src="https://cdn.clerk.com/clerk.js"></script>
+  <script src="/assets/auth.js"></script>
+  <script>
+    (async () => {
+      const statusEl = document.getElementById('status');
+      const errorEl = document.getElementById('error');
+      const signIn = document.getElementById('sign-in-link');
+      const signUp = document.getElementById('sign-up-link');
+
+      const env = window.__ENV || {};
+      signIn.href = env.CLERK_SIGN_IN_URL || '#';
+      signUp.href = env.CLERK_SIGN_UP_URL || '#';
+
+      try {
+        await window.PromptLineAuth.initClerk();
+        const token = await window.PromptLineAuth.getToken();
+        if (!token) {
+          statusEl.textContent = 'You are signed out.';
+          return;
+        }
+
+        statusEl.textContent = 'Signing you in…';
+        const res = await fetch('/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.status === 401) {
+          statusEl.textContent = 'You are signed out.';
+          return;
+        }
+        if (res.status === 403) {
+          statusEl.textContent = 'Signed in, but not assigned to an organization.';
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(`Failed to load /me: ${res.status}`);
+        }
+
+        const me = await res.json();
+        const slug = me?.org?.slug;
+        if (!slug) throw new Error('Missing org.slug in /me response');
+
+        window.location.href = `/${encodeURIComponent(slug)}`;
+      } catch (e) {
+        statusEl.textContent = 'Unable to initialize authentication.';
+        errorEl.style.display = 'block';
+        errorEl.textContent = e && e.message ? e.message : String(e);
+      }
+    })();
+  </script>
+</body>
+</html>
+

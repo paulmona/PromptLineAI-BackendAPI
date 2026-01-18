@@ -44,7 +44,21 @@ const eventSchema = z
     has_code_block: z.boolean().nullable().optional(),
     paste_detected: z.boolean().nullable().optional(),
   })
-  .passthrough(); // Allow unknown keys for extra
+  .passthrough() // Allow unknown keys for extra
+  .superRefine((val, ctx) => {
+    // Tenant/user attribution must come from auth context, never from client payload.
+    // Reject these fields loudly to avoid hard-to-debug situations.
+    const forbidden = ['org_id', 'orgId', 'user_id', 'userId'] as const;
+    for (const key of forbidden) {
+      if (Object.prototype.hasOwnProperty.call(val, key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is not allowed in event payload`,
+        });
+      }
+    }
+  });
 
 export const ingestRequestSchema = z
   .object({

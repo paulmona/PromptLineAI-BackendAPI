@@ -237,7 +237,7 @@ The following example shows a typical batch of events that the extension might s
 - **URL**: Configurable via `BACKEND_URL` (default: `http://127.0.0.1:8787/ingest`)
 - **Headers**: 
   - `Content-Type: application/json` (always sent)
-  - `X-POC-TOKEN: <token>` (only if `POC_TOKEN` is configured in extension)
+  - `X-INGEST-KEY: <org-ingest-key>` (required)
 - **Body**: JSON stringified payload containing `device_id` and `events` array
 - **Timeout**: 5 seconds (request is aborted if not completed within this time)
 
@@ -268,7 +268,6 @@ When `DRY_RUN` is set to `true` (default):
 The extension's behavior can be configured in `src/config.ts`:
 
 - `BACKEND_URL`: Endpoint URL for sending events (default: `http://127.0.0.1:8787/ingest`)
-- `POC_TOKEN`: Optional authentication token sent in `X-POC-TOKEN` header (default: empty string)
 - `DRY_RUN`: If `true`, logs events but doesn't send HTTP requests (default: `true`)
 - `FLUSH_INTERVAL_MS`: Milliseconds between flush attempts (default: `10000`)
 - `BATCH_SIZE`: Maximum number of events per batch (default: `50`)
@@ -302,13 +301,13 @@ To receive events from this extension, implement a REST API endpoint that:
 2. **Expects JSON payload** with the structure described in the "Event Data Format" section above
 3. **Returns 2xx status code** on success (extension treats any 2xx as success)
 4. **Returns non-2xx status code** on error (extension will retry on next flush interval)
-5. **Optionally validates** the `X-POC-TOKEN` header if authentication is required
+5. **Validates** the `X-INGEST-KEY` header (org-scoped ingest key)
 
 ### Expected Request Format
 
 - **Method**: `POST`
 - **Content-Type**: `application/json`
-- **Optional Header**: `X-POC-TOKEN` (if configured in extension)
+- **Required Header**: `X-INGEST-KEY`
 - **Body**: JSON object with `device_id` (UUID string) and `events` (array of 1-50 event objects)
 
 ### Expected Response
@@ -325,6 +324,7 @@ To receive events from this extension, implement a REST API endpoint that:
 - All timestamps are in UTC (ISO 8601 format)
 - All UUIDs follow standard UUID v4 format
 - Nullable fields may be `null` or omitted entirely
-- The extension does not send duplicate events (each event has a unique `id`)
+- The extension should treat event IDs as globally unique (UUID v4). Backend idempotency uses `events.id` as a global primary key.
+- If the same device UUID is ever used with a different org ingest key, backend returns `409 Conflict` (device org mismatch guard).
 
 For detailed validation requirements and error handling recommendations, see the backend implementation guide (separate document).

@@ -7,7 +7,10 @@ info:
     This API receives events from the PromptLineAI Chrome extension and provides
     summary statistics. Events are ingested idempotently and stored in Postgres.
     
-    **Authentication**: All endpoints except `/healthz` require the `X-POC-TOKEN` header.
+    **Authentication**:
+    - `/healthz` is public.
+    - `/ingest` requires `X-INGEST-KEY` (org-scoped ingest key).
+    - `/me` and `/summary` require `Authorization: Bearer <Clerk session token>` (dashboard only).
   version: 0.1.0
   contact:
     name: PromptLineAI
@@ -43,6 +46,45 @@ paths:
                 ok: true
                 db: 'connected'
 
+  /me:
+    get:
+      tags:
+        - Reporting
+      summary: Get current user and org
+      description: |
+        Returns the authenticated user and organization.
+
+        **Tenant Isolation**:
+        - Organization is derived EXCLUSIVELY from the Clerk auth context (org_id claim or membership fallback).
+        - On first dashboard request, the backend bootstraps the org row in Postgres using canonical org metadata fetched from Clerk (no guessing).
+        - Org slug is immutable once set.
+      operationId: me
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User and org details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Missing or invalid Clerk session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Unauthorized'
+        '403':
+          description: Valid token but org context is missing/invalid (not assigned to exactly one org)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'User must be assigned to exactly one organization'
+
   /ingest:
     post:
       tags:
@@ -52,7 +94,15 @@ paths:
         Ingests events from the Chrome extension. Events are processed idempotently -
         re-sending the same event UUID will not create duplicate rows.
         
-        **Authentication**: Requires `X-POC-TOKEN` header matching server configuration.
+        **Authentication**: Requires `X-INGEST-KEY` header.
+
+        **Tenant Isolation**:
+        - The `org_id` for all writes is derived EXCLUSIVELY from `X-INGEST-KEY` (hashed server-side and mapped to a single org).
+        - Client-supplied org/user identifiers are rejected if present in the event payload.
+        - Devices have a global UUID primary key; if a device UUID already exists under a different org, the request is rejected with 409 Conflict.
+
+        **User Attribution**:
+        - Not implemented in this milestone. `events.user_id` and `devices.user_id` remain NULL.
         
         **Validation**: 
         - Maximum 50 events per request
@@ -61,7 +111,7 @@ paths:
         - Unknown event fields are stored in `events.extra` JSONB column
       operationId: ingest
       security:
-        - POCToken: []
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -116,13 +166,38 @@ paths:
                     _errors:
                       - 'Array must contain at most 50 element(s)'
         '401':
-          description: Invalid or missing authentication token
+          description: Missing, invalid, or revoked ingest key
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
-                error: 'Invalid or missing X-POC-TOKEN'
+                error: 'Invalid ingest key'
+        '409':
+          description: Device belongs to a different organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Device belongs to different organization'
+                message: 'This device is already associated with another organization'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Payload Too Large'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Too Many Requests'
         '500':
           description: Internal server error
           content:
@@ -139,13 +214,18 @@ paths:
         - Reporting
       summary: Get summary statistics
       description: |
-        Returns summary statistics for events within a time range. All statistics
-        are filtered by the server's default organization (configured via `DEFAULT_ORG_NAME`).
+        Returns summary statistics for events within a time range.
+
+        **Tenant Isolation**:
+        - All statistics are filtered by the authenticated user's organization.
+        - The org is derived EXCLUSIVELY from Clerk auth context.
         
         **Time Bucketing**:
         - `24h`: Hourly buckets
         - `7d` or `30d`: Daily buckets
       operationId: summary
+      security:
+        - BearerAuth: []
       parameters:
         - name: range
           in: query
@@ -199,6 +279,22 @@ paths:
                   range:
                     _errors:
                       - "Invalid enum value. Expected '24h' | '7d' | '30d', received 'invalid'"
+        '401':
+          description: Missing or invalid Clerk session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Unauthorized'
+        '403':
+          description: Valid token but org context is missing/invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'User must be assigned to exactly one organization'
         '500':
           description: Internal server error
           content:
@@ -211,13 +307,47 @@ paths:
 
 components:
   securitySchemes:
-    POCToken:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Clerk session token (dashboard endpoints)
+    ApiKeyAuth:
       type: apiKey
       in: header
-      name: X-POC-TOKEN
-      description: POC authentication token (configured via POC_TOKEN environment variable)
+      name: X-INGEST-KEY
+      description: Org-scoped ingest key for /ingest (raw key is never stored; server hashes with HMAC + pepper)
 
   schemas:
+    MeResponse:
+      type: object
+      required:
+        - user
+        - org
+      properties:
+        user:
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+              format: uuid
+        org:
+          type: object
+          required:
+            - id
+            - name
+            - slug
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+              description: Canonical org slug for routing (immutable once set)
     HealthResponse:
       type: object
       required:

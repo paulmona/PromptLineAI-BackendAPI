@@ -18,16 +18,17 @@ Local-first POC backend for PromptLineAI event ingestion and reporting.
    pnpm install
    ```
 
-2. Create `.env` file from `.env.example`:
+2. Create `.env` file from `env.example`:
    ```bash
-   cp .env.example .env
+   cp env.example .env
    ```
 
-3. Configure `.env` with your database credentials:
+3. Configure `.env` with your credentials:
    ```
    PORT=8787
-   POC_TOKEN=your-secret-token-here
-   DEFAULT_ORG_NAME=default
+   CLERK_PUBLISHABLE_KEY=pk_test_...
+   CLERK_SECRET_KEY=sk_test_...
+   INGEST_KEY_PEPPER=... # generate: openssl rand -hex 32
    DB_HOST=192.168.0.71
    DB_PORT=5432
    DB_NAME=aicompliance
@@ -81,7 +82,12 @@ Ingest events from the Chrome extension.
 
 **Headers:**
 - `Content-Type: application/json`
-- `X-POC-TOKEN: <token>` (required, must match POC_TOKEN from .env)
+- `X-INGEST-KEY: <key>` (required)
+
+**Tenant Invariant:**
+- Org attribution is derived **exclusively** from `X-INGEST-KEY` (hashed server-side with HMAC + pepper).
+- Client-supplied org/user fields are **rejected** if present.
+- If the device UUID already exists under a different org, the request is rejected with **409 Conflict**.
 
 **Request Body:**
 ```json
@@ -117,7 +123,7 @@ Ingest events from the Chrome extension.
 ```bash
 curl -X POST http://127.0.0.1:8787/ingest \
   -H 'Content-Type: application/json' \
-  -H 'X-POC-TOKEN: your-token' \
+  -H 'X-INGEST-KEY: your-ingest-key' \
   --data @payload.json
 ```
 
@@ -126,6 +132,8 @@ curl -X POST http://127.0.0.1:8787/ingest \
 ### GET /summary
 
 Get summary statistics for events.
+
+**Auth:** `Authorization: Bearer <Clerk session token>` (dashboard only; extension does not use this).
 
 **Query Parameters:**
 - `range` (optional): `24h`, `7d`, or `30d` (default: `24h`)
@@ -153,8 +161,15 @@ Get summary statistics for events.
 
 **Example:**
 ```bash
-curl 'http://127.0.0.1:8787/summary?range=24h'
+curl 'http://127.0.0.1:8787/summary?range=24h' \
+  -H 'Authorization: Bearer <clerk-session-token>'
 ```
+
+### GET /me
+
+Returns the authenticated user + org and the canonical `org.slug` for routing.
+
+**Auth:** `Authorization: Bearer <Clerk session token>`
 
 ## Testing
 
@@ -213,21 +228,44 @@ SELECT * FROM events ORDER BY occurred_at DESC LIMIT 5;
 
 - **Schema Authority:** `schema.sql` is the single source of truth for database schema
 - **Idempotency:** Events are idempotent via `ON CONFLICT (id) DO NOTHING`
-- **Device Immutability:** Device `org_id` is never updated for existing devices
-- **Org Resolution:** Server resolves org by `DEFAULT_ORG_NAME` (client-provided org_id is ignored)
+- **Device org guard:** Device `org_id` is never updated; `/ingest` enforces a race-safe device org guard and returns 409 on org mismatch
+- **Org Resolution (dashboard):** Server resolves org by Clerk org context (with safe, constrained bootstrap from Clerk)
 - **Validation:** Strict validation with forward-compatible `extra` field for unknown event keys
-- **Security:** Token-based authentication via `X-POC-TOKEN` header (no user auth system yet)
+- **Security:** `/summary` and `/me` require Clerk Bearer token; `/ingest` requires `X-INGEST-KEY`
+
+## Chrome Extension Integration Notes (critical)
+
+The Chrome extension (separate repo) sends events to `POST /ingest`.
+
+**Auth method:**
+- `X-INGEST-KEY: <org-ingest-key>` (required)
+- The backend hashes the key using `HMAC_SHA256(INGEST_KEY_PEPPER, rawKey)` and looks up `ingest_keys.key_hash`.
+
+**Required headers:**
+```text
+Content-Type: application/json
+X-INGEST-KEY: <org-ingest-key>
+```
+
+**Org context:**
+- Derived **only** from the ingest key → org mapping. The body cannot override tenant.
+
+**Key rotation/revocation:**
+- Keys are created via `tsx scripts/create-ingest-key.ts <orgId> [name]` (no HTTP endpoint).
+- To rotate: create a new key, update the extension config, then revoke the old key by setting `ingest_keys.revoked_at`.
+- `INGEST_KEY_PEPPER` is effectively immutable for this POC. Rotating it will invalidate all existing keys immediately (requires full key rotation).
 
 ## Error Handling
 
 - **400:** Validation errors (invalid body, invalid query params, >50 events, invalid event_type)
-- **401:** Missing or incorrect `X-POC-TOKEN`
-- **500:** Database errors or missing default org
+- **401:** Missing/invalid ingest key or missing/invalid Clerk token (depending on endpoint)
+- **403:** Clerk token is valid but org context is missing/invalid
+- **409:** Device UUID belongs to a different org
+- **429:** Rate limit exceeded for ingest key
+- **500:** Database errors
 
 ## Limitations (POC)
 
-- No user authentication system
-- No user concept in ingestion payload
-- No frontend UI
+- No user attribution on ingest (`events.user_id` and `devices.user_id` remain NULL in this milestone)
 - Server binds to 127.0.0.1 (local only)
 - No request body logging for `/ingest` endpoint

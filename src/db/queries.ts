@@ -1,8 +1,9 @@
 import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { db } from './index.js';
-import { orgs, devices, events } from './schema.js';
+import { orgs, users, devices, events } from './schema.js';
 import logger from '../logger.js';
 import type { EventInput } from '../validation.js';
+import { randomUUID } from 'crypto';
 
 /**
  * Lookup or create org by name (exact match).
@@ -52,6 +53,91 @@ export async function getOrCreateOrg(orgName: string): Promise<{ id: string }> {
   return created[0];
 }
 
+export async function getOrgByExternalOrgId(externalOrgId: string): Promise<{ id: string; slug: string | null; name: string } | null> {
+  const rows = await db
+    .select({ id: orgs.id, slug: orgs.slug, name: orgs.name })
+    .from(orgs)
+    .where(eq(orgs.externalOrgId, externalOrgId))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/**
+ * Safe constrained org bootstrap: creates org ONLY when provided canonical values from Clerk.
+ * Slug is immutable once set:
+ * - If slug exists, we never change it
+ * - If slug is NULL, we will fill it once
+ */
+export async function ensureOrgByExternalOrgId(args: {
+  externalOrgId: string;
+  name: string;
+  slug: string;
+}): Promise<{ id: string; slug: string | null; name: string }> {
+  const result = await db
+    .insert(orgs)
+    .values({
+      externalOrgId: args.externalOrgId,
+      name: args.name,
+      slug: args.slug,
+    })
+    .onConflictDoUpdate({
+      target: orgs.externalOrgId,
+      set: {
+        name: sql`excluded.name`,
+        // slug immutability: only fill when currently NULL
+        slug: sql`coalesce(${orgs.slug}, excluded.slug)`,
+      },
+    })
+    .returning({ id: orgs.id, slug: orgs.slug, name: orgs.name });
+
+  return result[0];
+}
+
+export async function getUserByExternalUid(externalUid: string): Promise<{ id: string; orgId: string | null } | null> {
+  const rows = await db
+    .select({ id: users.id, orgId: users.orgId })
+    .from(users)
+    .where(eq(users.externalUid, externalUid))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/**
+ * Ensures a user row exists for the Clerk user.
+ * We intentionally generate our own UUID for id to avoid relying on unknown users table defaults.
+ */
+export async function ensureUserByExternalUid(args: {
+  externalUid: string;
+  orgId: string;
+}): Promise<{ id: string; orgId: string | null }> {
+  const existing = await getUserByExternalUid(args.externalUid);
+  if (existing) {
+    // Keep org in sync with invariant: user belongs to exactly one org
+    if (existing.orgId !== args.orgId) {
+      const updated = await db
+        .update(users)
+        .set({ orgId: args.orgId })
+        .where(eq(users.id, existing.id))
+        .returning({ id: users.id, orgId: users.orgId });
+      return updated[0];
+    }
+    return existing;
+  }
+
+  const created = await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      externalUid: args.externalUid,
+      orgId: args.orgId,
+    })
+    .returning({ id: users.id, orgId: users.orgId });
+
+  return created[0];
+}
+
 /**
  * Upsert device. Updates last_seen_at and optionally user_agent.
  * org_id is NEVER updated for existing devices (immutable).
@@ -89,11 +175,43 @@ export async function upsertDevice(
 }
 
 /**
+ * Race-safe device upsert guard:
+ * - Single statement insert/upsert returning org_id
+ * - Caller MUST compare returned org_id against expected org_id and abort if mismatched
+ */
+export async function upsertDeviceReturningOrgId(
+  dbOrTx: typeof db,
+  args: { deviceId: string; orgId: string; userAgent?: string | null }
+): Promise<{ orgId: string }> {
+  const rows = await dbOrTx
+    .insert(devices)
+    .values({
+      id: args.deviceId,
+      orgId: args.orgId,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+      userAgent: args.userAgent ?? null,
+    })
+    .onConflictDoUpdate({
+      target: devices.id,
+      set: {
+        lastSeenAt: new Date(),
+        ...(args.userAgent !== undefined && args.userAgent !== null ? { userAgent: args.userAgent } : {}),
+        // org_id is never updated
+      },
+    })
+    .returning({ orgId: devices.orgId });
+
+  return rows[0];
+}
+
+/**
  * Insert events with idempotency (ON CONFLICT DO NOTHING).
  * Maps invalid tool values to 'unknown'.
  * Returns { attempted, inserted } counts.
  */
 export async function insertEvents(
+  dbOrTx: typeof db,
   eventData: Array<{
     id: string;
     orgId: string;
@@ -117,19 +235,10 @@ export async function insertEvents(
 
   const attempted = eventData.length;
 
-  logger.debug(
-    {
-      attempted,
-      deviceId: eventData[0]?.deviceId,
-      orgId: eventData[0]?.orgId,
-      eventTypes: [...new Set(eventData.map((e) => e.eventType))],
-      tools: [...new Set(eventData.map((e) => e.tool))],
-    },
-    'Inserting events into database'
-  );
+  logger.debug({ attempted, deviceId: eventData[0]?.deviceId, orgId: eventData[0]?.orgId }, 'Inserting events into database');
 
   try {
-    const result = await db
+    const result = await dbOrTx
       .insert(events)
       .values(
         eventData.map((e) => ({
@@ -155,16 +264,7 @@ export async function insertEvents(
     const inserted = result.length;
     const ignored = attempted - inserted;
 
-    logger.info(
-      {
-        attempted,
-        inserted,
-        ignored,
-        deviceId: eventData[0]?.deviceId,
-        orgId: eventData[0]?.orgId,
-      },
-      'Events insert completed'
-    );
+    logger.info({ attempted, inserted, ignored, deviceId: eventData[0]?.deviceId, orgId: eventData[0]?.orgId }, 'Events insert completed');
 
     return {
       attempted,

@@ -6,12 +6,66 @@ let timeChart = null;
 // Current range
 let currentRange = '24h';
 let isLoading = false;
+let authToken = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   setupRangeSelector();
-  loadSummary(currentRange);
+  initAuthAndLoad();
 });
+
+async function initAuthAndLoad() {
+  try {
+    await window.PromptLineAuth.initClerk();
+    authToken = await window.PromptLineAuth.getToken();
+
+    const signOutBtn = document.getElementById('sign-out-btn');
+    signOutBtn.onclick = async () => {
+      await window.PromptLineAuth.signOut();
+      window.location.href = '/';
+    };
+
+    if (!authToken) {
+      showAuthRequired('Please sign in to view your dashboard.');
+      setLoadingState(false);
+      return;
+    }
+
+    // Bootstrap + canonical org slug via /me
+    const meRes = await fetch('/me', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (meRes.status === 401) {
+      showAuthRequired('Please sign in to view your dashboard.');
+      return;
+    }
+    if (meRes.status === 403) {
+      showAuthRequired('You are signed in, but not assigned to an organization.');
+      return;
+    }
+    if (!meRes.ok) {
+      throw new Error(`Failed to load /me: HTTP ${meRes.status}`);
+    }
+    const me = await meRes.json();
+    const canonicalSlug = me?.org?.slug;
+    if (!canonicalSlug) {
+      showAuthRequired('Organization slug is missing. Please contact your administrator.');
+      return;
+    }
+
+    const currentSlug = decodeURIComponent(window.location.pathname.replace(/^\/+/, '').split('/')[0] || '');
+    if (currentSlug && currentSlug !== canonicalSlug) {
+      window.location.href = `/${encodeURIComponent(canonicalSlug)}`;
+      return;
+    }
+
+    const orgPill = document.getElementById('org-pill');
+    orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
+
+    hideAuthBanner();
+    loadSummary(currentRange);
+  } catch (err) {
+    showAuthRequired(err && err.message ? err.message : String(err));
+  }
+}
 
 function setupRangeSelector() {
   const buttons = document.querySelectorAll('.range-btn');
@@ -34,9 +88,19 @@ function setActiveRange(range) {
 
 async function fetchSummary(range) {
   const url = `/summary?range=${range}`;
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+  });
   
   if (!response.ok) {
+    if (response.status === 401) {
+      showAuthRequired('Please sign in to view your dashboard.');
+      throw new Error('Unauthorized');
+    }
+    if (response.status === 403) {
+      showAuthRequired('You are signed in, but not assigned to an organization.');
+      throw new Error('Forbidden');
+    }
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
@@ -90,6 +154,22 @@ function showError(message) {
 
 function hideError() {
   document.getElementById('error-banner').classList.add('hidden');
+}
+
+function showAuthRequired(message) {
+  const banner = document.getElementById('auth-banner');
+  const msg = document.getElementById('auth-message');
+  const link = document.getElementById('auth-sign-in-link');
+  msg.textContent = message;
+  const env = window.__ENV || {};
+  link.href = env.CLERK_SIGN_IN_URL || '#';
+  banner.classList.remove('hidden');
+  document.getElementById('dashboard-content').style.display = 'none';
+}
+
+function hideAuthBanner() {
+  document.getElementById('auth-banner').classList.add('hidden');
+  document.getElementById('dashboard-content').style.display = '';
 }
 
 function renderDashboard(data) {

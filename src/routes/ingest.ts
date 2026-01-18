@@ -1,8 +1,21 @@
 import type { FastifyInstance } from 'fastify';
-import env from '../env.js';
 import logger from '../logger.js';
 import { ingestRequestSchema, separateEventFields } from '../validation.js';
-import { getOrCreateOrg, upsertDevice, insertEvents } from '../db/queries.js';
+import { db } from '../db/index.js';
+import { upsertDeviceReturningOrgId, insertEvents } from '../db/queries.js';
+import { getSingleHeaderValue } from '../auth/headers.js';
+import { hashIngestKey, resolveOrgIdFromIngestKeyHash } from '../db/ingest-keys.js';
+import { checkRateLimitPerKey } from '../auth/ingest-rate-limit.js';
+
+class DeviceOrgMismatchError extends Error {
+  constructor(
+    public readonly deviceId: string,
+    public readonly expectedOrgId: string,
+    public readonly actualOrgId: string
+  ) {
+    super('Device belongs to different organization');
+  }
+}
 
 export async function ingestRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest', async (request, reply) => {
@@ -21,25 +34,30 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       'Incoming ingest request'
     );
 
-    // Check X-POC-TOKEN header
-    const token = request.headers['x-poc-token'];
-    const hasToken = !!token;
-    const tokenValid = token === env.POC_TOKEN;
-
-    if (!hasToken || !tokenValid) {
-      logger.warn(
-        {
-          requestId,
-          clientIp,
-          hasToken,
-          tokenValid,
-        },
-        'Authentication failed - invalid or missing X-POC-TOKEN'
-      );
-      return reply.code(401).send({ error: 'Invalid or missing X-POC-TOKEN' });
+    // Ingest auth: X-INGEST-KEY (single value, trimmed). Never log it.
+    const ingestKeyHeader = getSingleHeaderValue(request.headers['x-ingest-key'] as string | string[] | undefined);
+    if (!ingestKeyHeader.ok) {
+      // Only missing header gets a specific message; invalid/revoked stays generic (avoid leaking state).
+      const msg = ingestKeyHeader.reason === 'missing' ? 'Missing X-INGEST-KEY' : 'Invalid ingest key';
+      return reply.code(401).send({ error: msg });
     }
 
-    logger.debug({ requestId, clientIp }, 'Authentication successful');
+    const ingestKey = ingestKeyHeader.value;
+    const ingestKeyHash = hashIngestKey(ingestKey);
+
+    // Basic in-memory rate limiting per key hash
+    const rl = checkRateLimitPerKey({ keyHash: ingestKeyHash, windowMs: 60_000, maxRequests: 60 });
+    if (!rl.allowed) {
+      reply.header('Retry-After', String(rl.retryAfterSeconds));
+      return reply.code(429).send({ error: 'Too Many Requests' });
+    }
+
+    const resolved = await resolveOrgIdFromIngestKeyHash(ingestKeyHash);
+    if (!resolved) {
+      return reply.code(401).send({ error: 'Invalid ingest key' });
+    }
+
+    const resolvedOrgId = resolved.orgId;
 
     // Validate request body
     const validationResult = ingestRequestSchema.safeParse(request.body);
@@ -65,57 +83,56 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         requestId,
         device_id,
         eventCount: events.length,
-        eventIds: events.map((e) => e.id),
       },
       'Request validated, processing events'
     );
 
     try {
-      // Resolve org by DEFAULT_ORG_NAME
-      logger.debug({ requestId, orgName: env.DEFAULT_ORG_NAME }, 'Resolving org');
-      const org = await getOrCreateOrg(env.DEFAULT_ORG_NAME);
-      logger.debug({ requestId, orgId: org.id }, 'Org resolved');
+      const userAgent = (request.headers['user-agent'] as string | undefined) ?? null;
 
-      // Upsert device (org_id immutable for existing devices)
-      logger.debug({ requestId, device_id, orgId: org.id }, 'Upserting device');
-      await upsertDevice(device_id, org.id);
-      logger.debug({ requestId, device_id }, 'Device upserted');
-
-      // Prepare events for insertion
-      logger.debug({ requestId, eventCount: events.length }, 'Preparing events for insertion');
-      const eventData = events.map((event) => {
-        const { known, extra } = separateEventFields(event);
-
-        // tool is already coerced to valid enum or 'unknown' by validation
-        // event_type is strictly validated (invalid => 400)
-
-        return {
-          id: known.id,
-          orgId: org.id,
+      // Device + events insert must be fail-closed and race-safe.
+      const result = await db.transaction(async (tx) => {
+        // Single-statement upsert returning org_id (race-safe).
+        const deviceRow = await upsertDeviceReturningOrgId(tx as any, {
           deviceId: device_id,
-          occurredAt: new Date(known.ts),
-          tool: known.tool,
-          eventType: known.event_type,
-          urlHost: known.url_host,
-          fileExt: known.file_ext ?? null,
-          fileSizeKb: known.file_size_kb ?? null,
-          fileName: known.file_name ?? null,
-          promptLenBucket: known.prompt_len_bucket ?? null,
-          hasCodeBlock: known.has_code_block ?? null,
-          pasteDetected: known.paste_detected ?? null,
-          extra,
-        };
-      });
+          orgId: resolvedOrgId,
+          userAgent,
+        });
 
-      // Insert events (idempotent)
-      logger.debug({ requestId, eventCount: eventData.length }, 'Inserting events into database');
-      const result = await insertEvents(eventData);
+        if (deviceRow.orgId !== resolvedOrgId) {
+          throw new DeviceOrgMismatchError(device_id, resolvedOrgId, deviceRow.orgId);
+        }
+
+        // Prepare events for insertion (tenant derived exclusively from ingest key)
+        const eventData = events.map((event) => {
+          const { known, extra } = separateEventFields(event);
+
+          return {
+            id: known.id,
+            orgId: resolvedOrgId,
+            deviceId: device_id,
+            occurredAt: new Date(known.ts),
+            tool: known.tool,
+            eventType: known.event_type,
+            urlHost: known.url_host,
+            fileExt: known.file_ext ?? null,
+            fileSizeKb: known.file_size_kb ?? null,
+            fileName: known.file_name ?? null,
+            promptLenBucket: known.prompt_len_bucket ?? null,
+            hasCodeBlock: known.has_code_block ?? null,
+            pasteDetected: known.paste_detected ?? null,
+            extra,
+          };
+        });
+
+        return await insertEvents(tx as any, eventData);
+      });
 
       logger.info(
         {
           requestId,
           device_id,
-          org_id: org.id,
+          org_id: resolvedOrgId,
           attempted: result.attempted,
           inserted: result.inserted,
           ignored: result.attempted - result.inserted,
@@ -129,6 +146,17 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         inserted: result.inserted,
       };
     } catch (err) {
+      if (err instanceof DeviceOrgMismatchError) {
+        logger.warn(
+          { requestId, device_id: err.deviceId, expectedOrgId: err.expectedOrgId, actualOrgId: err.actualOrgId },
+          'Rejecting ingest due to device org mismatch'
+        );
+        return reply.code(409).send({
+          error: 'Device belongs to different organization',
+          message: 'This device is already associated with another organization',
+        });
+      }
+
       logger.error(
         {
           requestId,
