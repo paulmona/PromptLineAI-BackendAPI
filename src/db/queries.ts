@@ -1,4 +1,4 @@
-import { eq, sql, and, gte, desc } from 'drizzle-orm';
+import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { db } from './index.js';
 import { orgs, devices, events } from './schema.js';
 import logger from '../logger.js';
@@ -264,6 +264,24 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
     .groupBy(bucketExpr)
     .orderBy(bucketExpr);
 
+  // File uploads (only file_selected events with file_name)
+  const filesResult = await db
+    .select({
+      fileName: events.fileName,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(events)
+    .where(
+      and(
+        eq(events.orgId, orgId),
+        gte(events.occurredAt, startTime),
+        eq(events.eventType, 'file_selected' as const),
+        isNotNull(events.fileName)
+      )
+    )
+    .groupBy(events.fileName)
+    .orderBy(sql`count(*) DESC`, events.fileName);
+
   return {
     range,
     total_events: totalEvents,
@@ -271,5 +289,6 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
     tools: toolsResult.map((r) => ({ tool: r.tool, count: r.count })),
     event_types: eventTypesResult.map((r) => ({ event_type: r.eventType, count: r.count })),
     time_buckets: timeBucketsResult.map((r) => ({ bucket: r.bucket, count: r.count })),
+    files: filesResult.map((r) => ({ file_name: r.fileName!, count: r.count })),
   };
 }

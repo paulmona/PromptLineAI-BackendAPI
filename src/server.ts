@@ -1,4 +1,7 @@
 import Fastify from 'fastify';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fastifyStatic from '@fastify/static';
 import env from './env.js';
 import logger from './logger.js';
 import { closeDatabase } from './db/index.js';
@@ -6,15 +9,25 @@ import { healthzRoutes } from './routes/healthz.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { summaryRoutes } from './routes/summary.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const fastify = Fastify({
   logger,
   disableRequestLogging: true, // We'll log manually for /ingest
 });
 
-// Register routes
+// Register API routes first (exact matches take precedence)
 await fastify.register(healthzRoutes);
 await fastify.register(ingestRoutes);
 await fastify.register(summaryRoutes);
+
+// Register static file serving
+await fastify.register(fastifyStatic, {
+  root: path.join(__dirname, '../public'),
+  prefix: '/',
+  index: 'index.html',
+});
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {

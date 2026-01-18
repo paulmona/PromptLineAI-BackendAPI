@@ -182,6 +182,11 @@ paths:
                     count: 10
                   - bucket: '2026-01-16 18:00:00+00'
                     count: 15
+                files:
+                  - file_name: 'document.pdf'
+                    count: 5
+                  - file_name: 'report.xlsx'
+                    count: 3
         '400':
           description: Invalid query parameters
           content:
@@ -338,6 +343,7 @@ components:
         - tools
         - event_types
         - time_buckets
+        - files
       properties:
         range:
           type: string
@@ -400,6 +406,22 @@ components:
               count:
                 type: integer
                 example: 10
+        files:
+          type: array
+          description: File uploads with counts (only file_selected events)
+          items:
+            type: object
+            required:
+              - file_name
+              - count
+            properties:
+              file_name:
+                type: string
+                example: 'document.pdf'
+              count:
+                type: integer
+                description: Number of times this file was uploaded
+                example: 5
 
     ErrorResponse:
       type: object
