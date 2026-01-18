@@ -14,6 +14,11 @@
     .btn.secondary { background: #fff; color: #111; }
     .status { margin-top: 16px; color: #555; }
     .error { margin-top: 16px; color: #b42318; }
+    .auth-container { margin-top: 24px; }
+    .auth-container.hidden { display: none; }
+    .auth-tabs { display: flex; gap: 12px; margin-bottom: 16px; }
+    .auth-tab { padding: 8px 16px; border: 1px solid #ddd; background: #fff; cursor: pointer; border-radius: 4px; }
+    .auth-tab.active { background: #111; color: #fff; border-color: #111; }
   </style>
 </head>
 <body>
@@ -21,13 +26,18 @@
     <h1>PromptLineAI</h1>
     <p>Sign in to view your organization dashboard.</p>
 
-    <div class="actions">
-      <a id="sign-in-link" class="btn" href="#">Sign in</a>
-      <a id="sign-up-link" class="btn secondary" href="#">Sign up</a>
-    </div>
-
     <div id="status" class="status">Checking session…</div>
     <div id="error" class="error" style="display:none;"></div>
+
+    <!-- Embedded Clerk components (shown when signed out) -->
+    <div id="auth-container" class="auth-container hidden">
+      <div class="auth-tabs">
+        <button id="tab-sign-in" class="auth-tab active">Sign In</button>
+        <button id="tab-sign-up" class="auth-tab">Sign Up</button>
+      </div>
+      <div id="sign-in-container"></div>
+      <div id="sign-up-container" style="display:none;"></div>
+    </div>
   </div>
 
   <script src="/env.js"></script>
@@ -36,43 +46,101 @@
     (async () => {
       const statusEl = document.getElementById('status');
       const errorEl = document.getElementById('error');
-      const signIn = document.getElementById('sign-in-link');
-      const signUp = document.getElementById('sign-up-link');
+      const authContainer = document.getElementById('auth-container');
+      const signInContainer = document.getElementById('sign-in-container');
+      const signUpContainer = document.getElementById('sign-up-container');
+      const tabSignIn = document.getElementById('tab-sign-in');
+      const tabSignUp = document.getElementById('tab-sign-up');
 
-      const env = window.__ENV || {};
-      signIn.href = env.CLERK_SIGN_IN_URL || '#';
-      signUp.href = env.CLERK_SIGN_UP_URL || '#';
+      // Tab switching
+      tabSignIn.addEventListener('click', () => {
+        tabSignIn.classList.add('active');
+        tabSignUp.classList.remove('active');
+        signInContainer.style.display = '';
+        signUpContainer.style.display = 'none';
+      });
+
+      tabSignUp.addEventListener('click', () => {
+        tabSignUp.classList.add('active');
+        tabSignIn.classList.remove('active');
+        signUpContainer.style.display = '';
+        signInContainer.style.display = 'none';
+      });
 
       try {
         await window.PromptLineAuth.initClerk();
+        
+        // Check if user is already signed in
         const token = await window.PromptLineAuth.getToken();
-        if (!token) {
-          statusEl.textContent = 'You are signed out.';
+        if (token) {
+          statusEl.textContent = 'Signing you in…';
+          const res = await fetch('/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (res.status === 401) {
+            statusEl.textContent = 'You are signed out.';
+            authContainer.classList.remove('hidden');
+            // Mount components for sign-in
+            window.PromptLineAuth.mountSignIn(signInContainer, {
+              afterSignInUrl: window.location.origin,
+            });
+            return;
+          }
+          if (res.status === 403) {
+            statusEl.textContent = 'Signed in, but not assigned to an organization.';
+            return;
+          }
+          if (!res.ok) {
+            throw new Error(`Failed to load /me: ${res.status}`);
+          }
+
+          const me = await res.json();
+          const slug = me?.org?.slug;
+          if (!slug) throw new Error('Missing org.slug in /me response');
+
+          window.location.href = `/${encodeURIComponent(slug)}`;
           return;
         }
 
-        statusEl.textContent = 'Signing you in…';
-        const res = await fetch('/me', {
-          headers: { Authorization: `Bearer ${token}` }
+        // User is signed out - show embedded components
+        statusEl.textContent = '';
+        authContainer.classList.remove('hidden');
+        
+        // Mount sign-in and sign-up components
+        window.PromptLineAuth.mountSignIn(signInContainer, {
+          afterSignInUrl: window.location.origin,
+        });
+        
+        window.PromptLineAuth.mountSignUp(signUpContainer, {
+          afterSignUpUrl: window.location.origin,
         });
 
-        if (res.status === 401) {
-          statusEl.textContent = 'You are signed out.';
-          return;
-        }
-        if (res.status === 403) {
-          statusEl.textContent = 'Signed in, but not assigned to an organization.';
-          return;
-        }
-        if (!res.ok) {
-          throw new Error(`Failed to load /me: ${res.status}`);
-        }
+        // Listen for sign-in/sign-up completion
+        if (window.Clerk && window.Clerk.addListener) {
+          window.Clerk.addListener('user', async () => {
+            // User signed in/up - check auth and redirect
+            const newToken = await window.PromptLineAuth.getToken();
+            if (newToken) {
+              statusEl.textContent = 'Signing you in…';
+              try {
+                const res = await fetch('/me', {
+                  headers: { Authorization: `Bearer ${newToken}` }
+                });
 
-        const me = await res.json();
-        const slug = me?.org?.slug;
-        if (!slug) throw new Error('Missing org.slug in /me response');
-
-        window.location.href = `/${encodeURIComponent(slug)}`;
+                if (res.ok) {
+                  const me = await res.json();
+                  const slug = me?.org?.slug;
+                  if (slug) {
+                    window.location.href = `/${encodeURIComponent(slug)}`;
+                  }
+                }
+              } catch (err) {
+                console.error('Failed to redirect after sign-in:', err);
+              }
+            }
+          });
+        }
       } catch (e) {
         statusEl.textContent = 'Unable to initialize authentication.';
         errorEl.style.display = 'block';

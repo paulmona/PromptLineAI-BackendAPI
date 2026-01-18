@@ -143,10 +143,54 @@
     await window.Clerk.signOut();
   }
 
+  function mountSignIn(containerElement, options = {}) {
+    if (!window.Clerk || !window.Clerk.loaded) {
+      console.error('[Clerk.js Loader] Cannot mount sign-in: Clerk is not loaded');
+      return;
+    }
+    
+    if (!containerElement) {
+      console.error('[Clerk.js Loader] Cannot mount sign-in: container element is required');
+      return;
+    }
+    
+    try {
+      console.log('[Clerk.js Loader] Mounting sign-in component...');
+      window.Clerk.mountSignIn(containerElement, options);
+      console.log('[Clerk.js Loader] Sign-in component mounted successfully');
+    } catch (error) {
+      console.error('[Clerk.js Loader] Failed to mount sign-in component:', error);
+      throw error;
+    }
+  }
+
+  function mountSignUp(containerElement, options = {}) {
+    if (!window.Clerk || !window.Clerk.loaded) {
+      console.error('[Clerk.js Loader] Cannot mount sign-up: Clerk is not loaded');
+      return;
+    }
+    
+    if (!containerElement) {
+      console.error('[Clerk.js Loader] Cannot mount sign-up: container element is required');
+      return;
+    }
+    
+    try {
+      console.log('[Clerk.js Loader] Mounting sign-up component...');
+      window.Clerk.mountSignUp(containerElement, options);
+      console.log('[Clerk.js Loader] Sign-up component mounted successfully');
+    } catch (error) {
+      console.error('[Clerk.js Loader] Failed to mount sign-up component:', error);
+      throw error;
+    }
+  }
+
   window.PromptLineAuth = {
     initClerk,
     getToken,
     signOut,
+    mountSignIn,
+    mountSignUp,
   };
 })();
 

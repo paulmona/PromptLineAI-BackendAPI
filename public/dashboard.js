@@ -161,8 +161,8 @@ function showAuthRequired(message) {
   const msg = document.getElementById('auth-message');
   const link = document.getElementById('auth-sign-in-link');
   msg.textContent = message;
-  const env = window.__ENV || {};
-  link.href = env.CLERK_SIGN_IN_URL || '#';
+  // Redirect to landing page where embedded sign-in component is available
+  link.href = '/';
   banner.classList.remove('hidden');
   document.getElementById('dashboard-content').style.display = 'none';
 }
