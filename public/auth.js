@@ -119,18 +119,8 @@
     }
     
     console.log('[Clerk.js Loader] Clerk.js loaded and initialized successfully');
-    console.log('[Clerk.js Loader] window.Clerk type:', typeof window.Clerk);
-    
-    // Diagnostic: Log available Clerk methods
-    console.log('[Diagnostic] window.Clerk keys:', Object.keys(window.Clerk || {}).slice(0, 30));
-    console.log('[Diagnostic] window.Clerk.mountSignIn type:', typeof window.Clerk?.mountSignIn);
-    console.log('[Diagnostic] window.Clerk.mountSignUp type:', typeof window.Clerk?.mountSignUp);
-    console.log('[Diagnostic] window.Clerk.addListener type:', typeof window.Clerk?.addListener);
-    console.log('[Diagnostic] window.Clerk.on type:', typeof window.Clerk?.on);
-    console.log('[Diagnostic] window.Clerk.loaded:', window.Clerk?.loaded);
     
     if (window.Clerk.loaded) {
-      console.log('[Clerk.js Loader] Clerk.js is ready to use');
       return;
     }
     
@@ -152,12 +142,8 @@
   }
 
   function mountSignIn(containerElement, options = {}) {
-    console.log('[Diagnostic] mountSignIn called with:', { containerElement, options });
-    
     if (!window.Clerk || !window.Clerk.loaded) {
       console.error('[Clerk.js Loader] Cannot mount sign-in: Clerk is not loaded');
-      console.error('[Diagnostic] window.Clerk:', window.Clerk);
-      console.error('[Diagnostic] window.Clerk.loaded:', window.Clerk?.loaded);
       return;
     }
     
@@ -166,10 +152,6 @@
       return;
     }
     
-    console.log('[Diagnostic] Checking mountSignIn availability...');
-    console.log('[Diagnostic] window.Clerk.mountSignIn type:', typeof window.Clerk.mountSignIn);
-    console.log('[Diagnostic] window.Clerk.mountSignIn:', window.Clerk.mountSignIn);
-    
     if (typeof window.Clerk.mountSignIn !== 'function') {
       const error = new Error(`window.Clerk.mountSignIn is not a function. Type: ${typeof window.Clerk.mountSignIn}`);
       console.error('[Clerk.js Loader]', error);
@@ -177,24 +159,16 @@
     }
     
     try {
-      console.log('[Clerk.js Loader] Mounting sign-in component...');
       window.Clerk.mountSignIn(containerElement, options);
-      console.log('[Clerk.js Loader] Sign-in component mounted successfully');
     } catch (error) {
       console.error('[Clerk.js Loader] Failed to mount sign-in component:', error);
-      console.error('[Diagnostic] Mount error type:', typeof error);
-      console.error('[Diagnostic] Mount error details:', error);
       throw error;
     }
   }
 
   function mountSignUp(containerElement, options = {}) {
-    console.log('[Diagnostic] mountSignUp called with:', { containerElement, options });
-    
     if (!window.Clerk || !window.Clerk.loaded) {
       console.error('[Clerk.js Loader] Cannot mount sign-up: Clerk is not loaded');
-      console.error('[Diagnostic] window.Clerk:', window.Clerk);
-      console.error('[Diagnostic] window.Clerk.loaded:', window.Clerk?.loaded);
       return;
     }
     
@@ -203,10 +177,6 @@
       return;
     }
     
-    console.log('[Diagnostic] Checking mountSignUp availability...');
-    console.log('[Diagnostic] window.Clerk.mountSignUp type:', typeof window.Clerk.mountSignUp);
-    console.log('[Diagnostic] window.Clerk.mountSignUp:', window.Clerk.mountSignUp);
-    
     if (typeof window.Clerk.mountSignUp !== 'function') {
       const error = new Error(`window.Clerk.mountSignUp is not a function. Type: ${typeof window.Clerk.mountSignUp}`);
       console.error('[Clerk.js Loader]', error);
@@ -214,13 +184,9 @@
     }
     
     try {
-      console.log('[Clerk.js Loader] Mounting sign-up component...');
       window.Clerk.mountSignUp(containerElement, options);
-      console.log('[Clerk.js Loader] Sign-up component mounted successfully');
     } catch (error) {
       console.error('[Clerk.js Loader] Failed to mount sign-up component:', error);
-      console.error('[Diagnostic] Mount error type:', typeof error);
-      console.error('[Diagnostic] Mount error details:', error);
       throw error;
     }
   }

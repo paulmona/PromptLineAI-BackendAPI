@@ -68,14 +68,10 @@
       });
 
       try {
-        console.log('[Diagnostic] Starting initialization...');
         await window.PromptLineAuth.initClerk();
-        console.log('[Diagnostic] initClerk completed successfully');
         
         // Check if user is already signed in
-        console.log('[Diagnostic] Checking for existing token...');
         const token = await window.PromptLineAuth.getToken();
-        console.log('[Diagnostic] Token check result:', token ? 'Token exists' : 'No token');
         if (token) {
           statusEl.textContent = 'Signing you in…';
           const res = await fetch('/me', {
@@ -112,84 +108,19 @@
         authContainer.classList.remove('hidden');
         
         // Mount sign-in and sign-up components
-        console.log('[Diagnostic] Before mounting components...');
-        console.log('[Diagnostic] signInContainer:', signInContainer, 'type:', typeof signInContainer);
-        console.log('[Diagnostic] signUpContainer:', signUpContainer, 'type:', typeof signUpContainer);
-        console.log('[Diagnostic] window.Clerk.mountSignIn type:', typeof window.Clerk?.mountSignIn);
-        console.log('[Diagnostic] window.Clerk.mountSignUp type:', typeof window.Clerk?.mountSignUp);
-        
         window.PromptLineAuth.mountSignIn(signInContainer, {
           fallbackRedirectUrl: window.location.origin,
         });
-        console.log('[Diagnostic] Sign-in component mount call completed');
         
         window.PromptLineAuth.mountSignUp(signUpContainer, {
           fallbackRedirectUrl: window.location.origin,
         });
-        console.log('[Diagnostic] Sign-up component mount call completed');
-
-        // Listen for sign-in/sign-up completion
-        console.log('[Diagnostic] Before addListener check...');
-        console.log('[Diagnostic] window.Clerk:', window.Clerk);
-        console.log('[Diagnostic] window.Clerk.addListener type:', typeof window.Clerk?.addListener);
-        console.log('[Diagnostic] window.Clerk.on type:', typeof window.Clerk?.on);
-        console.log('[Diagnostic] window.Clerk.addEventListener type:', typeof window.Clerk?.addEventListener);
-        console.log('[Diagnostic] window.Clerk.methods:', window.Clerk ? Object.keys(window.Clerk).filter(k => typeof window.Clerk[k] === 'function').slice(0, 30) : 'N/A');
         
-        // Try to find the correct event listener method
-        const eventMethod = window.Clerk?.addListener || window.Clerk?.on || window.Clerk?.addEventListener;
-        console.log('[Diagnostic] Event listener method found:', eventMethod ? (window.Clerk?.addListener ? 'addListener' : window.Clerk?.on ? 'on' : 'addEventListener') : 'NONE');
-        
-        if (window.Clerk && eventMethod) {
-          console.log('[Diagnostic] Registering event listener for "user" event using:', window.Clerk?.addListener ? 'addListener' : window.Clerk?.on ? 'on' : 'addEventListener');
-          try {
-            eventMethod.call(window.Clerk, 'user', async () => {
-              console.log('[Diagnostic] User event listener callback triggered');
-            // User signed in/up - check auth and redirect
-            const newToken = await window.PromptLineAuth.getToken();
-            if (newToken) {
-              statusEl.textContent = 'Signing you in…';
-              try {
-                const res = await fetch('/me', {
-                  headers: { Authorization: `Bearer ${newToken}` }
-                });
-
-                if (res.ok) {
-                  const me = await res.json();
-                  const slug = me?.org?.slug;
-                  if (slug) {
-                    window.location.href = `/${encodeURIComponent(slug)}`;
-                  }
-                }
-              } catch (err) {
-                console.error('Failed to redirect after sign-in:', err);
-              }
-            }
-            });
-            console.log('[Diagnostic] Event listener registered successfully');
-          } catch (listenerError) {
-            console.error('[Diagnostic] Failed to register event listener:', listenerError);
-            console.error('[Diagnostic] Listener error type:', typeof listenerError);
-            console.error('[Diagnostic] Listener error details:', listenerError);
-          }
-        } else {
-          console.warn('[Diagnostic] No event listener method available on window.Clerk');
-          console.warn('[Diagnostic] window.Clerk exists:', !!window.Clerk);
-          console.warn('[Diagnostic] addListener exists:', !!window.Clerk?.addListener);
-          console.warn('[Diagnostic] on exists:', !!window.Clerk?.on);
-          console.warn('[Diagnostic] addEventListener exists:', !!window.Clerk?.addEventListener);
-        }
+        // Note: After sign-in/sign-up, Clerk will redirect to fallbackRedirectUrl (/)
+        // The page will reload and the authentication check above will detect the user
+        // and redirect to their org dashboard
       } catch (e) {
-        console.error('[Diagnostic] Error caught in main try-catch block');
-        console.error('[Diagnostic] Error type:', typeof e);
-        console.error('[Diagnostic] Error constructor:', e?.constructor?.name);
-        console.error('[Diagnostic] Error instanceof Error:', e instanceof Error);
-        console.error('[Diagnostic] Error message:', e?.message);
-        console.error('[Diagnostic] Error stack:', e?.stack);
-        console.error('[Diagnostic] Full error object:', e);
-        console.error('[Diagnostic] String(e):', String(e));
-        console.error('[Diagnostic] JSON.stringify(e):', JSON.stringify(e, Object.getOwnPropertyNames(e)));
-        
+        console.error('Authentication initialization error:', e);
         statusEl.textContent = 'Unable to initialize authentication.';
         errorEl.style.display = 'block';
         errorEl.textContent = (e instanceof Error ? e.message : (typeof e === 'string' ? e : String(e))) || 'Unknown error occurred';
