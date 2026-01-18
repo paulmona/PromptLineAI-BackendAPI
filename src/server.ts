@@ -23,8 +23,9 @@ const fastify = Fastify({
 // CSP policy to allow Clerk.js scripts from FAPI URL (per Clerk.com documentation)
 const CSP_POLICY = 
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://cdn.jsdelivr.net; " +
-  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com; " +
+  "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com; " +
   "frame-src https://*.clerk.accounts.dev https://*.clerk.com; " +
+  "worker-src 'self' blob:; " +
   "img-src 'self' data: https:; " +
   "style-src 'self' 'unsafe-inline' https:; " +
   "font-src 'self' data: https:;";
