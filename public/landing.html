@@ -16,9 +16,6 @@
     .error { margin-top: 16px; color: #b42318; }
     .auth-container { margin-top: 24px; }
     .auth-container.hidden { display: none; }
-    .auth-tabs { display: flex; gap: 12px; margin-bottom: 16px; }
-    .auth-tab { padding: 8px 16px; border: 1px solid #ddd; background: #fff; cursor: pointer; border-radius: 4px; }
-    .auth-tab.active { background: #111; color: #fff; border-color: #111; }
   </style>
 </head>
 <body>
@@ -31,12 +28,7 @@
 
     <!-- Embedded Clerk components (shown when signed out) -->
     <div id="auth-container" class="auth-container hidden">
-      <div class="auth-tabs">
-        <button id="tab-sign-in" class="auth-tab active">Sign In</button>
-        <button id="tab-sign-up" class="auth-tab">Sign Up</button>
-      </div>
       <div id="sign-in-container"></div>
-      <div id="sign-up-container" style="display:none;"></div>
     </div>
   </div>
 
@@ -48,9 +40,6 @@
       const errorEl = document.getElementById('error');
       const authContainer = document.getElementById('auth-container');
       const signInContainer = document.getElementById('sign-in-container');
-      const signUpContainer = document.getElementById('sign-up-container');
-      const tabSignIn = document.getElementById('tab-sign-in');
-      const tabSignUp = document.getElementById('tab-sign-up');
 
       // Prevent redirect loops: check if we've been redirected too many times
       const redirectCount = sessionStorage.getItem('authRedirectCount') || '0';
@@ -63,21 +52,6 @@
         errorEl.textContent = 'There appears to be an authentication issue. Please sign out and try again.';
         return;
       }
-
-      // Tab switching
-      tabSignIn.addEventListener('click', () => {
-        tabSignIn.classList.add('active');
-        tabSignUp.classList.remove('active');
-        signInContainer.style.display = '';
-        signUpContainer.style.display = 'none';
-      });
-
-      tabSignUp.addEventListener('click', () => {
-        tabSignUp.classList.add('active');
-        tabSignIn.classList.remove('active');
-        signUpContainer.style.display = '';
-        signInContainer.style.display = 'none';
-      });
 
       try {
         await window.PromptLineAuth.initClerk();
@@ -139,16 +113,12 @@
         statusEl.textContent = '';
         authContainer.classList.remove('hidden');
         
-        // Mount sign-in and sign-up components
+        // Mount sign-in component
         window.PromptLineAuth.mountSignIn(signInContainer, {
           fallbackRedirectUrl: window.location.origin,
         });
         
-        window.PromptLineAuth.mountSignUp(signUpContainer, {
-          fallbackRedirectUrl: window.location.origin,
-        });
-        
-        // Note: After sign-in/sign-up, Clerk will redirect to fallbackRedirectUrl (/)
+        // Note: After sign-in, Clerk will redirect to fallbackRedirectUrl (/)
         // The page will reload and the authentication check above will detect the user
         // and redirect to their org dashboard
       } catch (e) {

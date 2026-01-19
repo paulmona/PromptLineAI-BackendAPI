@@ -62,7 +62,7 @@ fastify.get('/env.js', async (_request, reply) => {
   const payload = {
     CLERK_PUBLISHABLE_KEY: env.CLERK_PUBLISHABLE_KEY,
     CLERK_SIGN_IN_URL: env.CLERK_SIGN_IN_URL ?? null,
-    CLERK_SIGN_UP_URL: env.CLERK_SIGN_UP_URL ?? null,
+    // CLERK_SIGN_UP_URL removed - app doesn't support sign-ups
     CLERK_FAPI_URL: env.CLERK_FAPI_URL,
     CLERK_JS_URL: clerkJsUrl,
   };
