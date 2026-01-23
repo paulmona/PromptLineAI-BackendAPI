@@ -194,10 +194,10 @@ function hideAuthBanner() {
 }
 
 function renderDashboard(data) {
-  // Update device name in header if available
+  // Update device name in header span if available (preserving "PromptLineAI - " prefix)
   if (data.device_name) {
-    const deviceNameHeader = document.getElementById('device-name-header');
-    deviceNameHeader.textContent = data.device_name;
+    const deviceNameSpan = document.getElementById('device-name-header');
+    deviceNameSpan.textContent = data.device_name;
   }
 
   // Summary cards
