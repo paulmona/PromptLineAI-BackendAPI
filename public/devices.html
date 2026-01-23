@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Devices - PromptLineAI Dashboard</title>
+  <link rel="stylesheet" href="/assets/dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap: 16px;">
+        <h1>Devices</h1>
+        <div style="display:flex; align-items:center; gap: 12px;">
+          <span id="org-pill" style="font-size:12px; color:#555;"></span>
+          <a id="back-to-dashboard" href="#" class="retry-btn" style="text-decoration:none; width:auto;">Back to Dashboard</a>
+          <button id="sign-out-btn" class="retry-btn" style="width:auto;">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="auth-banner" class="error-banner hidden">
+      <span id="auth-message"></span>
+      <a id="auth-sign-in-link" class="retry-btn" href="#" style="text-decoration:none;">Sign in</a>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden">
+      <span id="error-message"></span>
+      <button id="retry-btn" class="retry-btn">Retry</button>
+    </div>
+
+    <div id="devices-content">
+      <section class="chart-section">
+        <h2>All Devices</h2>
+        <div class="table-container-full">
+          <table id="devices-table">
+            <thead>
+              <tr>
+                <th>Device Name</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="3">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/env.js"></script>
+  <script src="/assets/auth.js"></script>
+  <script src="/assets/devices.js"></script>
+</body>
+</html>

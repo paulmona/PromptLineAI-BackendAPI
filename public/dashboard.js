@@ -7,6 +7,7 @@ let timeChart = null;
 let currentRange = '24h';
 let isLoading = false;
 let authToken = null;
+let orgSlug = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -59,6 +60,11 @@ async function initAuthAndLoad() {
 
     const orgPill = document.getElementById('org-pill');
     orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
+
+    orgSlug = canonicalSlug;
+
+    // Make Unique Devices card clickable
+    setupUniqueDevicesClick();
 
     hideAuthBanner();
     loadSummary(currentRange);
@@ -170,6 +176,16 @@ function showAuthRequired(message) {
 function hideAuthBanner() {
   document.getElementById('auth-banner').classList.add('hidden');
   document.getElementById('dashboard-content').style.display = '';
+}
+
+function setupUniqueDevicesClick() {
+  const uniqueDevicesCard = document.querySelector('.summary-cards .card:nth-child(2)');
+  if (uniqueDevicesCard && orgSlug) {
+    uniqueDevicesCard.classList.add('clickable');
+    uniqueDevicesCard.addEventListener('click', () => {
+      window.location.href = `/${encodeURIComponent(orgSlug)}/devices`;
+    });
+  }
 }
 
 function renderDashboard(data) {

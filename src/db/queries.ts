@@ -306,9 +306,10 @@ export async function insertEvents(
 
 /**
  * Get summary statistics for an org within a time range.
- * All queries are filtered by org_id.
+ * All queries are filtered by org_id, optionally by device_id.
+ * When device_id is provided, also returns device_name for display.
  */
-export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
+export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', deviceId?: string) {
   const now = new Date();
   let startTime: Date;
   let bucketFormat: 'hour' | 'day';
@@ -328,21 +329,43 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
       break;
   }
 
+  // Build base where conditions
+  const baseConditions = [eq(events.orgId, orgId), gte(events.occurredAt, startTime)];
+  if (deviceId) {
+    baseConditions.push(eq(events.deviceId, deviceId));
+  }
+  const whereClause = and(...baseConditions);
+
+  // Get device_name if device_id is provided
+  let deviceName: string | undefined;
+  if (deviceId) {
+    const deviceResult = await db
+      .select({ deviceName: devices.deviceName })
+      .from(devices)
+      .where(and(eq(devices.id, deviceId), eq(devices.orgId, orgId)))
+      .limit(1);
+    deviceName = deviceResult[0]?.deviceName;
+  }
+
   // Total events
   const totalEventsResult = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(events)
-    .where(and(eq(events.orgId, orgId), gte(events.occurredAt, startTime)));
+    .where(whereClause);
 
   const totalEvents = totalEventsResult[0]?.count ?? 0;
 
-  // Unique devices
-  const uniqueDevicesResult = await db
-    .select({ count: sql<number>`count(distinct ${events.deviceId})::int` })
-    .from(events)
-    .where(and(eq(events.orgId, orgId), gte(events.occurredAt, startTime)));
-
-  const uniqueDevices = uniqueDevicesResult[0]?.count ?? 0;
+  // Unique devices (only meaningful when not filtering by device)
+  let uniqueDevices = 0;
+  if (!deviceId) {
+    const uniqueDevicesResult = await db
+      .select({ count: sql<number>`count(distinct ${events.deviceId})::int` })
+      .from(events)
+      .where(whereClause);
+    uniqueDevices = uniqueDevicesResult[0]?.count ?? 0;
+  } else {
+    uniqueDevices = 1;
+  }
 
   // Tools count
   const toolsResult = await db
@@ -351,7 +374,7 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
       count: sql<number>`count(*)::int`,
     })
     .from(events)
-    .where(and(eq(events.orgId, orgId), gte(events.occurredAt, startTime)))
+    .where(whereClause)
     .groupBy(events.tool)
     .orderBy(events.tool);
 
@@ -362,7 +385,7 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
       count: sql<number>`count(*)::int`,
     })
     .from(events)
-    .where(and(eq(events.orgId, orgId), gte(events.occurredAt, startTime)))
+    .where(whereClause)
     .groupBy(events.eventType)
     .orderBy(events.eventType);
 
@@ -378,7 +401,7 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
       count: sql<number>`count(*)::int`,
     })
     .from(events)
-    .where(and(eq(events.orgId, orgId), gte(events.occurredAt, startTime)))
+    .where(whereClause)
     .groupBy(bucketExpr)
     .orderBy(bucketExpr);
 
@@ -391,8 +414,7 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
     .from(events)
     .where(
       and(
-        eq(events.orgId, orgId),
-        gte(events.occurredAt, startTime),
+        ...baseConditions,
         eq(events.eventType, 'file_selected' as const),
         isNotNull(events.fileName)
       )
@@ -400,7 +422,16 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
     .groupBy(events.fileName)
     .orderBy(sql`count(*) DESC`, events.fileName);
 
-  return {
+  const result: {
+    range: string;
+    total_events: number;
+    unique_devices: number;
+    tools: Array<{ tool: string; count: number }>;
+    event_types: Array<{ event_type: string; count: number }>;
+    time_buckets: Array<{ bucket: string; count: number }>;
+    files: Array<{ file_name: string; count: number }>;
+    device_name?: string;
+  } = {
     range,
     total_events: totalEvents,
     unique_devices: uniqueDevices,
@@ -409,4 +440,10 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d') {
     time_buckets: timeBucketsResult.map((r) => ({ bucket: r.bucket, count: r.count })),
     files: filesResult.map((r) => ({ file_name: r.fileName!, count: r.count })),
   };
+
+  if (deviceName) {
+    result.device_name = deviceName;
+  }
+
+  return result;
 }

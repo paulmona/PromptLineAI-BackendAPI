@@ -10,6 +10,7 @@ import { healthzRoutes } from './routes/healthz.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { summaryRoutes } from './routes/summary.js';
 import { meRoutes } from './routes/me.js';
+import { devicesRoutes } from './routes/devices.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,6 +48,7 @@ await fastify.register(healthzRoutes);
 await fastify.register(ingestRoutes);
 await fastify.register(meRoutes);
 await fastify.register(summaryRoutes);
+await fastify.register(devicesRoutes);
 
 // Public env (publishable only) for the static frontend
 fastify.get('/env.js', async (_request, reply) => {
@@ -88,6 +90,20 @@ fastify.get('/', async (_request, reply) => {
 // Backward-compatible legacy asset paths (temporary guardrail)
 fastify.get('/dashboard.js', async (_request, reply) => reply.redirect(302, '/assets/dashboard.js'));
 fastify.get('/dashboard.css', async (_request, reply) => reply.redirect(302, '/assets/dashboard.css'));
+
+// Device detail route (must be before /:orgSlug/devices)
+fastify.get('/:orgSlug/devices/:deviceId', async (_request, reply) => {
+  reply.header('Content-Security-Policy', CSP_POLICY);
+  const html = await readFile(path.join(publicDir, 'device-detail.html'), 'utf8');
+  return reply.type('text/html; charset=utf-8').send(html);
+});
+
+// Device list route (must be before /:orgSlug)
+fastify.get('/:orgSlug/devices', async (_request, reply) => {
+  reply.header('Content-Security-Policy', CSP_POLICY);
+  const html = await readFile(path.join(publicDir, 'devices.html'), 'utf8');
+  return reply.type('text/html; charset=utf-8').send(html);
+});
 
 // Org dashboard route (register LAST)
 fastify.get('/:orgSlug', async (_request, reply) => {
