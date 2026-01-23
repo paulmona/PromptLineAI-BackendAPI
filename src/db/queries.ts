@@ -197,13 +197,14 @@ export async function upsertDevice(
  */
 export async function upsertDeviceReturningOrgId(
   dbOrTx: typeof db,
-  args: { deviceId: string; orgId: string; userAgent?: string | null }
+  args: { deviceId: string; orgId: string; deviceName: string; userAgent?: string | null }
 ): Promise<{ orgId: string }> {
   const rows = await dbOrTx
     .insert(devices)
     .values({
       id: args.deviceId,
       orgId: args.orgId,
+      deviceName: args.deviceName,
       firstSeenAt: new Date(),
       lastSeenAt: new Date(),
       userAgent: args.userAgent ?? null,
@@ -212,6 +213,7 @@ export async function upsertDeviceReturningOrgId(
       target: devices.id,
       set: {
         lastSeenAt: new Date(),
+        deviceName: args.deviceName,
         ...(args.userAgent !== undefined && args.userAgent !== null ? { userAgent: args.userAgent } : {}),
         // org_id is never updated
       },

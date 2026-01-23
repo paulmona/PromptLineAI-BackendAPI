@@ -63,6 +63,7 @@ const eventSchema = z
 export const ingestRequestSchema = z
   .object({
     device_id: z.string().uuid(),
+    device_name: z.string().min(1).max(64),
     events: z.array(eventSchema).min(1).max(50),
   })
   .strict();

@@ -34,7 +34,8 @@ CREATE TABLE public.devices (
     first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
     last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
     user_agent text,
-    notes text
+    notes text,
+    device_name character varying(64) DEFAULT 'unassigned' NOT NULL
 );
 
 

@@ -120,6 +120,7 @@ paths:
               $ref: '#/components/schemas/IngestRequest'
             example:
               device_id: 'b70e507e-b843-4979-be70-eea4f175bb05'
+              device_name: 'unassigned'
               events:
                 - id: '550e8400-e29b-41d4-a716-446655440000'
                   ts: '2026-01-16T17:00:00.000Z'
@@ -368,6 +369,7 @@ components:
       type: object
       required:
         - device_id
+        - device_name
         - events
       properties:
         device_id:
@@ -375,6 +377,12 @@ components:
           format: uuid
           description: Unique device identifier from the Chrome extension
           example: 'b70e507e-b843-4979-be70-eea4f175bb05'
+        device_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Human-readable device name (max 64 characters)
+          example: 'unassigned'
         events:
           type: array
           minItems: 1

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, jsonb, pgEnum, check } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, varchar, timestamp, integer, boolean, jsonb, pgEnum, check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // Enums exactly as in schema.sql
@@ -30,6 +30,7 @@ export const devices = pgTable('devices', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
   userAgent: text('user_agent'),
   notes: text('notes'),
+  deviceName: varchar('device_name', { length: 64 }).notNull().default('unassigned'),
 });
 
 export const events = pgTable(

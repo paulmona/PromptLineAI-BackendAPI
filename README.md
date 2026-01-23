@@ -93,6 +93,7 @@ Ingest events from the Chrome extension.
 ```json
 {
   "device_id": "b70e507e-b843-4979-be70-eea4f175bb05",
+  "device_name": "unassigned",
   "events": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -179,6 +180,7 @@ Create `payload.json`:
 ```json
 {
   "device_id": "b70e507e-b843-4979-be70-eea4f175bb05",
+  "device_name": "unassigned",
   "events": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",

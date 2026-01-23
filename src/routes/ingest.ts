@@ -76,7 +76,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const { device_id, events } = validationResult.data;
+    const { device_id, device_name, events } = validationResult.data;
 
     logger.debug(
       {
@@ -96,6 +96,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         const deviceRow = await upsertDeviceReturningOrgId(tx as any, {
           deviceId: device_id,
           orgId: resolvedOrgId,
+          deviceName: device_name,
           userAgent,
         });
 
