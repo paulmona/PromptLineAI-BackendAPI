@@ -20,12 +20,6 @@ async function initAuthAndLoad() {
     await window.PromptLineAuth.initClerk();
     authToken = await window.PromptLineAuth.getToken();
 
-    const signOutBtn = document.getElementById('sign-out-btn');
-    signOutBtn.onclick = async () => {
-      await window.PromptLineAuth.signOut();
-      window.location.href = '/';
-    };
-
     if (!authToken) {
       showAuthRequired('Please sign in to view your dashboard.');
       setLoadingState(false);

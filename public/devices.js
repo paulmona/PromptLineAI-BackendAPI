@@ -12,12 +12,6 @@ async function initAuthAndLoad() {
     await window.PromptLineAuth.initClerk();
     authToken = await window.PromptLineAuth.getToken();
 
-    const signOutBtn = document.getElementById('sign-out-btn');
-    signOutBtn.onclick = async () => {
-      await window.PromptLineAuth.signOut();
-      window.location.href = '/';
-    };
-
     if (!authToken) {
       showAuthRequired('Please sign in to view devices.');
       setLoadingState(false);
@@ -53,10 +47,14 @@ async function initAuthAndLoad() {
     orgSlug = canonicalSlug;
 
     const orgPill = document.getElementById('org-pill');
-    orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
+    if (orgPill) {
+      orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
+    }
 
     const backLink = document.getElementById('back-to-dashboard');
-    backLink.href = `/${encodeURIComponent(canonicalSlug)}`;
+    if (backLink) {
+      backLink.href = `/${encodeURIComponent(canonicalSlug)}`;
+    }
 
     hideAuthBanner();
     loadDevices();
@@ -106,38 +104,59 @@ async function loadDevices() {
 
 function setLoadingState(loading) {
   if (loading) {
-    document.querySelector('#devices-table tbody').innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+    const tbody = document.querySelector('#devices-table tbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+    }
   }
 }
 
 function showError(message) {
   const banner = document.getElementById('error-banner');
   const errorMsg = document.getElementById('error-message');
-  errorMsg.textContent = message;
-  banner.classList.remove('hidden');
+  if (banner && errorMsg) {
+    errorMsg.textContent = message;
+    banner.classList.remove('hidden');
 
-  // Setup retry button
-  const retryBtn = document.getElementById('retry-btn');
-  retryBtn.onclick = () => loadDevices();
+    // Setup retry button
+    const retryBtn = document.getElementById('retry-btn');
+    if (retryBtn) {
+      retryBtn.onclick = () => loadDevices();
+    }
+  }
 }
 
 function hideError() {
-  document.getElementById('error-banner').classList.add('hidden');
+  const banner = document.getElementById('error-banner');
+  if (banner) {
+    banner.classList.add('hidden');
+  }
 }
 
 function showAuthRequired(message) {
   const banner = document.getElementById('auth-banner');
   const msg = document.getElementById('auth-message');
   const link = document.getElementById('auth-sign-in-link');
-  msg.textContent = message;
-  link.href = '/';
-  banner.classList.remove('hidden');
-  document.getElementById('devices-content').style.display = 'none';
+  const content = document.getElementById('devices-content');
+  if (banner && msg && link) {
+    msg.textContent = message;
+    link.href = '/';
+    banner.classList.remove('hidden');
+    if (content) {
+      content.style.display = 'none';
+    }
+  }
 }
 
 function hideAuthBanner() {
-  document.getElementById('auth-banner').classList.add('hidden');
-  document.getElementById('devices-content').style.display = '';
+  const banner = document.getElementById('auth-banner');
+  const content = document.getElementById('devices-content');
+  if (banner) {
+    banner.classList.add('hidden');
+  }
+  if (content) {
+    content.style.display = '';
+  }
 }
 
 function renderDevices(devices) {

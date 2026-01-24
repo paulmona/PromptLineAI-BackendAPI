@@ -17,6 +17,136 @@ body {
   padding: 20px;
 }
 
+/* Header styles */
+.main-header {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #ddd;
+  position: relative;
+  z-index: 1;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 101;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-brand {
+  font-size: 2rem;
+  color: #2c3e50;
+  margin: 0;
+}
+
+/* Hamburger button - always visible */
+.hamburger-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 100;
+}
+
+.hamburger-btn span {
+  width: 100%;
+  height: 3px;
+  background-color: #2c3e50;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+/* Navigation styles - hidden by default, shown in hamburger menu */
+.header-nav-wrapper {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+  margin-top: 0;
+  pointer-events: none;
+}
+
+.header-nav-wrapper.menu-open {
+  display: block;
+  pointer-events: auto;
+}
+
+
+.main-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 280px;
+  max-width: 80vw;
+  height: 100%;
+  background: white;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-links a,
+.nav-links button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: #2c3e50;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 12px 16px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.nav-links a:hover,
+.nav-links button:hover {
+  background-color: #f0f0f0;
+}
+
+.nav-logout-btn {
+  margin-top: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 16px;
+}
+
+/* Legacy header support */
 header {
   display: flex;
   justify-content: space-between;
@@ -209,7 +339,26 @@ table tbody tr:hover {
   text-decoration: underline;
 }
 
+/* Footer styles */
+.main-footer {
+  margin-top: 60px;
+  padding: 20px 0;
+  border-top: 1px solid #ddd;
+  background-color: #f9f9f9;
+}
+
+.main-footer .container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+  text-align: center;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+/* Mobile styles */
 @media (max-width: 768px) {
+  /* Legacy header support */
   header {
     flex-direction: column;
     align-items: flex-start;

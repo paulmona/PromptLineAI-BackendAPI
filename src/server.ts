@@ -1,8 +1,9 @@
-import Fastify from 'fastify';
+import Fastify, { FastifyRequest, FastifyReply } from 'fastify';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { readFile } from 'fs/promises';
 import fastifyStatic from '@fastify/static';
+import fastifyView from '@fastify/view';
+import nunjucks from 'nunjucks';
 import env from './env.js';
 import logger from './logger.js';
 import { closeDatabase } from './db/index.js';
@@ -43,6 +44,15 @@ fastify.addHook('onSend', async (request, reply) => {
   }
 });
 
+// Register view engine (Nunjucks)
+await fastify.register(fastifyView, {
+  engine: {
+    nunjucks: nunjucks,
+  },
+  root: path.join(__dirname, '../views'),
+  viewExt: 'njk',
+});
+
 // Register API routes first (exact matches take precedence)
 await fastify.register(healthzRoutes);
 await fastify.register(ingestRoutes);
@@ -78,38 +88,53 @@ await fastify.register(fastifyStatic, {
   index: false,
 });
 
-const publicDir = path.join(__dirname, '../public');
-
-// Landing page
-fastify.get('/', async (_request, reply) => {
-  reply.header('Content-Security-Policy', CSP_POLICY);
-  const html = await readFile(path.join(publicDir, 'landing.html'), 'utf8');
-  return reply.type('text/html; charset=utf-8').send(html);
-});
-
 // Backward-compatible legacy asset paths (temporary guardrail)
 fastify.get('/dashboard.js', async (_request, reply) => reply.redirect(302, '/assets/dashboard.js'));
 fastify.get('/dashboard.css', async (_request, reply) => reply.redirect(302, '/assets/dashboard.css'));
 
+// Helper to get common template context
+const getTemplateContext = (overrides: Record<string, any> = {}) => {
+  return {
+    currentYear: new Date().getFullYear(),
+    ...overrides,
+  };
+};
+
+// Landing page
+fastify.get('/', async (_request, reply: FastifyReply) => {
+  return (reply as any).view('pages/landing.njk', getTemplateContext({
+    showUserControls: false,
+    orgSlug: null,
+  }));
+});
+
 // Device detail route (must be before /:orgSlug/devices)
-fastify.get('/:orgSlug/devices/:deviceId', async (_request, reply) => {
-  reply.header('Content-Security-Policy', CSP_POLICY);
-  const html = await readFile(path.join(publicDir, 'device-detail.html'), 'utf8');
-  return reply.type('text/html; charset=utf-8').send(html);
+fastify.get<{ Params: { orgSlug: string; deviceId: string } }>('/:orgSlug/devices/:deviceId', async (request: FastifyRequest<{ Params: { orgSlug: string; deviceId: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  const deviceId = decodeURIComponent(request.params.deviceId);
+  return (reply as any).view('pages/device-detail.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
+    deviceId,
+  }));
 });
 
 // Device list route (must be before /:orgSlug)
-fastify.get('/:orgSlug/devices', async (_request, reply) => {
-  reply.header('Content-Security-Policy', CSP_POLICY);
-  const html = await readFile(path.join(publicDir, 'devices.html'), 'utf8');
-  return reply.type('text/html; charset=utf-8').send(html);
+fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/devices', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  return (reply as any).view('pages/devices.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
+  }));
 });
 
 // Org dashboard route (register LAST)
-fastify.get('/:orgSlug', async (_request, reply) => {
-  reply.header('Content-Security-Policy', CSP_POLICY);
-  const html = await readFile(path.join(publicDir, 'dashboard.html'), 'utf8');
-  return reply.type('text/html; charset=utf-8').send(html);
+fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  return (reply as any).view('pages/dashboard.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
+  }));
 });
 
 // Graceful shutdown

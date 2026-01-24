@@ -266,6 +266,52 @@ X-INGEST-KEY: <org-ingest-key>
 - **429:** Rate limit exceeded for ingest key
 - **500:** Database errors
 
+## Frontend Templates
+
+The frontend uses Nunjucks templates for consistent layout and navigation across pages.
+
+### Template Structure
+
+- **Layouts**: `views/layouts/base.njk` - Base template with shared header/footer
+- **Partials**: `views/partials/` - Reusable components (header, footer, nav)
+- **Pages**: `views/pages/` - Page-specific templates extending the base layout
+
+### Adding a New Page
+
+1. Create a new template in `views/pages/` (e.g., `my-page.njk`):
+   ```njk
+   {% extends "layouts/base.njk" %}
+   
+   {% block title %}My Page - PromptLineAI{% endblock %}
+   
+   {% block pageTitle %}My Page{% endblock %}
+   
+   {% block content %}
+   <div class="container">
+     <!-- Your page content here -->
+   </div>
+   {% endblock %}
+   ```
+
+2. Add a route in `src/server.ts`:
+   ```typescript
+   fastify.get('/my-route', async (request, reply) => {
+     return reply.view('pages/my-page.njk', {
+       showUserControls: true,  // Show sign-out button if authenticated
+       orgSlug: orgSlug,        // Pass orgSlug for navigation links
+     });
+   });
+   ```
+
+### Hamburger Menu
+
+The navigation menu includes a responsive hamburger menu:
+- **Mobile (< 769px)**: Hamburger button toggles a dropdown menu
+- **Desktop (≥ 769px)**: Navigation links shown inline
+- Menu closes on link click, Escape key, or outside click
+
+Navigation links are automatically generated when `orgSlug` is provided to the template context.
+
 ## Limitations (POC)
 
 - No user attribution on ingest (`events.user_id` and `devices.user_id` remain NULL in this milestone)

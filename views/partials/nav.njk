@@ -1,0 +1,11 @@
+<nav id="main-nav" class="main-nav">
+  <ul class="nav-links">
+    {% if orgSlug %}
+    <li><a href="/{{ orgSlug }}">Dashboard</a></li>
+    <li><a href="/{{ orgSlug }}/devices">Devices</a></li>
+    {% if showUserControls %}
+    <li><button id="nav-logout-btn" class="nav-logout-btn">Logout</button></li>
+    {% endif %}
+    {% endif %}
+  </ul>
+</nav>
