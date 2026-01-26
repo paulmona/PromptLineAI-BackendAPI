@@ -163,9 +163,42 @@ h1 {
 
 .range-selector {
   display: flex;
+  align-items: center;
   gap: 10px;
+  padding: 12px 20px 0;
+  margin-top: 8px;
 }
 
+.range-select {
+  padding: 8px 16px;
+  border: 2px solid #3498db;
+  background: white;
+  color: #3498db;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  min-width: 150px;
+}
+
+.range-select:hover:not(:disabled) {
+  border-color: #2980b9;
+  background: #f8f9fa;
+}
+
+.range-select:focus {
+  outline: none;
+  border-color: #2980b9;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.range-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Legacy button styles - kept for backward compatibility if needed */
 .range-btn {
   padding: 8px 16px;
   border: 2px solid #3498db;

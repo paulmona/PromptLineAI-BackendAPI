@@ -24,5 +24,14 @@
   </div>
   {% endif %}
   
-  {% block headerExtras %}{% endblock %}
+  {% if showRangeSelector %}
+  <div class="range-selector">
+    <label for="range-select" style="margin-right: 8px; font-size: 0.9rem; color: #555;">Time Range:</label>
+    <select id="range-select" class="range-select">
+      <option value="24h" selected>Last 24 Hours</option>
+      <option value="7d">Last 7 Days</option>
+      <option value="30d">Last 30 Days</option>
+    </select>
+  </div>
+  {% endif %}
 </header>

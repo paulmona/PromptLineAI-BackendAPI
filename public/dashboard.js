@@ -68,22 +68,30 @@ async function initAuthAndLoad() {
 }
 
 function setupRangeSelector() {
-  const buttons = document.querySelectorAll('.range-btn');
-  buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (isLoading) return;
-      const range = btn.dataset.range;
-      setActiveRange(range);
-      loadSummary(range);
-    });
+  const select = document.getElementById('range-select');
+  if (!select) return;
+  
+  // Set initial value based on currentRange
+  select.value = currentRange;
+  
+  select.addEventListener('change', () => {
+    if (isLoading) {
+      // Revert selection if loading
+      select.value = currentRange;
+      return;
+    }
+    const range = select.value;
+    setActiveRange(range);
+    loadSummary(range);
   });
 }
 
 function setActiveRange(range) {
   currentRange = range;
-  document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.range === range);
-  });
+  const select = document.getElementById('range-select');
+  if (select) {
+    select.value = range;
+  }
 }
 
 async function fetchSummary(range) {
@@ -127,10 +135,10 @@ async function loadSummary(range) {
 }
 
 function setLoadingState(loading) {
-  const buttons = document.querySelectorAll('.range-btn');
-  buttons.forEach(btn => {
-    btn.disabled = loading;
-  });
+  const select = document.getElementById('range-select');
+  if (select) {
+    select.disabled = loading;
+  }
 
   if (loading) {
     document.getElementById('total-events').textContent = 'Loading...';

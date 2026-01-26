@@ -116,6 +116,7 @@ fastify.get<{ Params: { orgSlug: string; deviceId: string } }>('/:orgSlug/device
     showUserControls: true,
     orgSlug,
     deviceId,
+    showRangeSelector: true,
   }));
 });
 
@@ -134,6 +135,7 @@ fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug', async (request: Fastif
   return (reply as any).view('pages/dashboard.njk', getTemplateContext({
     showUserControls: true,
     orgSlug,
+    showRangeSelector: true,
   }));
 });
 
