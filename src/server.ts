@@ -12,6 +12,7 @@ import { ingestRoutes } from './routes/ingest.js';
 import { summaryRoutes } from './routes/summary.js';
 import { meRoutes } from './routes/me.js';
 import { devicesRoutes } from './routes/devices.js';
+import { policyRoutes } from './routes/policy.js';
 import { requireClerkAuth, requireOrgAdmin } from './auth/middleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -60,6 +61,7 @@ await fastify.register(ingestRoutes);
 await fastify.register(meRoutes);
 await fastify.register(summaryRoutes);
 await fastify.register(devicesRoutes);
+await fastify.register(policyRoutes);
 
 // Public env (publishable only) for the static frontend
 fastify.get('/env.js', async (_request, reply) => {

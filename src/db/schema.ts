@@ -12,6 +12,10 @@ export const orgs = pgTable('orgs', {
   externalOrgId: text('external_org_id'),
   slug: text('slug'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  policyConfig: jsonb('policy_config').default({
+    llms: { chatgpt: true, gemini: true },
+    fileUpload: { logFileNames: true }
+  }),
 });
 
 // NOTE: `users` table is referenced by existing FKs in schema.sql but not included in the dump.

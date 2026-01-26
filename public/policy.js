@@ -1,6 +1,8 @@
 // Policy page - admin-only access
 let authToken = null;
 let orgSlug = null;
+let currentConfig = null;
+let hasUnsavedChanges = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   // Hide admin items immediately (before auth check) to prevent FOUC
@@ -84,6 +86,11 @@ async function initAuthAndLoad() {
     hideAuthBanner();
     hideForbidden();
     showPolicyContent();
+    
+    // Load policy configuration and setup UI
+    await loadPolicyConfig();
+    setupToggleListeners();
+    setupSaveButton();
   } catch (err) {
     // On error, ensure admin items are hidden
     const orgAdminLink = document.getElementById('nav-org-admin-link');
@@ -180,5 +187,146 @@ function hideError() {
   const banner = document.getElementById('error-banner');
   if (banner) {
     banner.classList.add('hidden');
+  }
+}
+
+function showSuccess(message) {
+  const banner = document.getElementById('success-banner');
+  const msg = document.getElementById('success-message');
+  if (banner && msg) {
+    msg.textContent = message;
+    banner.classList.remove('hidden');
+  }
+}
+
+function hideSuccess() {
+  const banner = document.getElementById('success-banner');
+  if (banner) {
+    banner.classList.add('hidden');
+  }
+}
+
+async function loadPolicyConfig() {
+  try {
+    const res = await fetch(`/${orgSlug}/policy/config`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Failed to load config: HTTP ${res.status}`);
+    }
+    
+    currentConfig = await res.json();
+    populateUI(currentConfig);
+    hasUnsavedChanges = false;
+    updateSaveButton();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function populateUI(config) {
+  const chatgptToggle = document.getElementById('toggle-chatgpt');
+  const geminiToggle = document.getElementById('toggle-gemini');
+  const logFileNamesToggle = document.getElementById('toggle-log-file-names');
+  
+  if (chatgptToggle) chatgptToggle.checked = config.llms.chatgpt;
+  if (geminiToggle) geminiToggle.checked = config.llms.gemini;
+  if (logFileNamesToggle) logFileNamesToggle.checked = config.fileUpload.logFileNames;
+}
+
+function setupToggleListeners() {
+  const toggles = ['toggle-chatgpt', 'toggle-gemini', 'toggle-log-file-names'];
+  toggles.forEach(id => {
+    const toggle = document.getElementById(id);
+    if (toggle) {
+      toggle.addEventListener('change', () => {
+        hasUnsavedChanges = true;
+        updateSaveButton();
+      });
+    }
+  });
+}
+
+function setupSaveButton() {
+  const saveBtn = document.getElementById('save-policy-btn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', savePolicyConfig);
+  }
+}
+
+function updateSaveButton() {
+  const saveBtn = document.getElementById('save-policy-btn');
+  if (saveBtn) {
+    saveBtn.disabled = !hasUnsavedChanges;
+  }
+}
+
+async function savePolicyConfig() {
+  const chatgptToggle = document.getElementById('toggle-chatgpt');
+  const geminiToggle = document.getElementById('toggle-gemini');
+  const logFileNamesToggle = document.getElementById('toggle-log-file-names');
+  
+  if (!chatgptToggle || !geminiToggle || !logFileNamesToggle) {
+    showError('Failed to read toggle states');
+    return;
+  }
+  
+  const config = {
+    llms: {
+      chatgpt: chatgptToggle.checked,
+      gemini: geminiToggle.checked,
+    },
+    fileUpload: {
+      logFileNames: logFileNamesToggle.checked,
+    },
+  };
+  
+  // Show loading state
+  const saveBtn = document.getElementById('save-policy-btn');
+  const saveBtnText = document.getElementById('save-btn-text');
+  const saveBtnSpinner = document.getElementById('save-btn-spinner');
+  
+  if (!saveBtn || !saveBtnText || !saveBtnSpinner) {
+    showError('Save button elements not found');
+    return;
+  }
+  
+  saveBtn.disabled = true;
+  saveBtnText.textContent = 'Saving...';
+  saveBtnSpinner.classList.remove('hidden');
+  hideError();
+  hideSuccess();
+  
+  try {
+    const res = await fetch(`/${orgSlug}/policy/config`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(config),
+    });
+    
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `HTTP ${res.status}`);
+    }
+    
+    currentConfig = await res.json();
+    hasUnsavedChanges = false;
+    updateSaveButton();
+    showSuccess('Settings saved successfully!');
+    
+    // Auto-hide success message after 3 seconds
+    setTimeout(() => {
+      hideSuccess();
+    }, 3000);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtnText.textContent = 'Save Settings';
+    saveBtnSpinner.classList.add('hidden');
   }
 }

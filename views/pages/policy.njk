@@ -16,12 +16,77 @@
     <button id="retry-btn" class="retry-btn">Retry</button>
   </div>
 
+  <div id="success-banner" class="success-banner hidden">
+    <span id="success-message">Settings saved successfully!</span>
+  </div>
+
   <div id="policy-content" style="display: none;">
     <section class="chart-section">
-      <h2>AI Compliance Policy</h2>
-      <p style="color: #555; margin-top: 16px; font-size: 1.1rem;">
-        Policy configuration is coming soon. This page will allow organization administrators to configure compliance policies and control how the extension behaves.
+      <h2>AI Compliance Policy Settings</h2>
+      <p style="color: #555; margin-top: 8px; margin-bottom: 24px; font-size: 0.95rem;">
+        Configure which LLMs and features are tracked by the browser extension.
       </p>
+
+      <!-- LLM Toggles Section -->
+      <div class="policy-section">
+        <h3>Supported LLMs</h3>
+        <p class="policy-section-description">
+          Enable or disable tracking for specific AI tools. When disabled, the extension will not collect events from that tool.
+        </p>
+        
+        <div class="policy-toggle-group">
+          <div class="policy-toggle-item">
+            <label class="policy-toggle-label">
+              <span class="policy-toggle-name">ChatGPT</span>
+              <span class="policy-toggle-description">Track events from chat.openai.com</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-chatgpt" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="policy-toggle-item">
+            <label class="policy-toggle-label">
+              <span class="policy-toggle-name">Google Gemini</span>
+              <span class="policy-toggle-description">Track events from gemini.google.com</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-gemini" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Upload Policy Section -->
+      <div class="policy-section">
+        <h3>File Upload Policy</h3>
+        <p class="policy-section-description">
+          Control how file uploads are logged by the extension.
+        </p>
+        
+        <div class="policy-toggle-group">
+          <div class="policy-toggle-item">
+            <label class="policy-toggle-label">
+              <span class="policy-toggle-name">Log File Names</span>
+              <span class="policy-toggle-description">When enabled, file names are included in event logs. When disabled, only file metadata (size, extension) is logged.</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-log-file-names" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <div class="policy-actions">
+        <button id="save-policy-btn" class="save-btn" disabled>
+          <span id="save-btn-text">Save Settings</span>
+          <span id="save-btn-spinner" class="spinner hidden"></span>
+        </button>
+      </div>
     </section>
   </div>
 
@@ -34,6 +99,6 @@
 {% block scripts %}
 <script src="/env.js"></script>
 <script src="/assets/auth.js"></script>
-<script src="/assets/nav.js"></script>
+<script src="/nav.js"></script>
 <script src="/assets/policy.js"></script>
 {% endblock %}

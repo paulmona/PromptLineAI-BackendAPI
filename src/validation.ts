@@ -71,6 +71,19 @@ export const ingestRequestSchema = z
 export type IngestRequest = z.infer<typeof ingestRequestSchema>;
 export type EventInput = z.infer<typeof eventSchema>;
 
+// Policy configuration schema
+export const policyConfigSchema = z.object({
+  llms: z.object({
+    chatgpt: z.boolean(),
+    gemini: z.boolean(),
+  }),
+  fileUpload: z.object({
+    logFileNames: z.boolean(),
+  }),
+});
+
+export type PolicyConfig = z.infer<typeof policyConfigSchema>;
+
 /**
  * Separates known fields from unknown fields for an event.
  * Unknown fields are collected into an object for storage in events.extra.

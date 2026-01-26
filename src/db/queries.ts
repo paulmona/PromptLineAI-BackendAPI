@@ -2,7 +2,7 @@ import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { db } from './index.js';
 import { orgs, users, devices, events } from './schema.js';
 import logger from '../logger.js';
-import type { EventInput } from '../validation.js';
+import type { EventInput, PolicyConfig } from '../validation.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -446,4 +446,51 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
   }
 
   return result;
+}
+
+/**
+ * Get policy configuration for an organization
+ */
+export async function getOrgPolicyConfig(orgId: string): Promise<PolicyConfig | null> {
+  const rows = await db
+    .select({ policyConfig: orgs.policyConfig })
+    .from(orgs)
+    .where(eq(orgs.id, orgId))
+    .limit(1);
+  
+  if (rows.length === 0 || !rows[0].policyConfig) {
+    return null;
+  }
+  
+  // Return with defaults if config is null/empty
+  const config = rows[0].policyConfig as PolicyConfig;
+  return {
+    llms: {
+      chatgpt: config.llms?.chatgpt ?? true,
+      gemini: config.llms?.gemini ?? true,
+    },
+    fileUpload: {
+      logFileNames: config.fileUpload?.logFileNames ?? true,
+    },
+  };
+}
+
+/**
+ * Update policy configuration for an organization
+ */
+export async function updateOrgPolicyConfig(
+  orgId: string,
+  config: PolicyConfig
+): Promise<PolicyConfig> {
+  const updated = await db
+    .update(orgs)
+    .set({ policyConfig: config })
+    .where(eq(orgs.id, orgId))
+    .returning({ policyConfig: orgs.policyConfig });
+  
+  if (updated.length === 0) {
+    throw new Error(`Organization ${orgId} not found`);
+  }
+  
+  return updated[0].policyConfig as PolicyConfig;
 }
