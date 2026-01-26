@@ -140,6 +140,22 @@ body {
   background-color: #f0f0f0;
 }
 
+/* Navigation separator */
+.nav-separator {
+  height: 1px;
+  background-color: #eee;
+  margin: 12px 0;
+  list-style: none;
+  padding: 0;
+}
+
+/* Account and Logout links - consistent with other nav items */
+.nav-account-link,
+.nav-logout-link {
+  /* Inherits styles from .nav-links a */
+}
+
+/* Legacy logout button styles - kept for backward compatibility if needed */
 .nav-logout-btn {
   margin-top: 8px;
   border-top: 1px solid #eee;

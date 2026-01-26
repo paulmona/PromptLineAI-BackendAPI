@@ -4,7 +4,9 @@
     <li><a href="/{{ orgSlug }}">Dashboard</a></li>
     <li><a href="/{{ orgSlug }}/devices">Devices</a></li>
     {% if showUserControls %}
-    <li><button id="nav-logout-btn" class="nav-logout-btn">Logout</button></li>
+    <li class="nav-separator"></li>
+    <li><a href="#" id="nav-account-link" class="nav-account-link">Account</a></li>
+    <li><a href="#" id="nav-logout-link" class="nav-logout-link">Logout</a></li>
     {% endif %}
     {% endif %}
   </ul>

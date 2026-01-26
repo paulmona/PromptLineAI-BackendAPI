@@ -15,18 +15,44 @@
       navWrapper.classList.toggle('menu-open');
     });
 
-    // Close menu when clicking nav links
-    const navLinks = navWrapper.querySelectorAll('.nav-links a');
+    // Close menu when clicking nav links (except Account and Logout which have special handlers)
+    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-logout-link)');
     navLinks.forEach(link => {
       link.addEventListener('click', function() {
         navWrapper.classList.remove('menu-open');
       });
     });
 
-    // Handle Logout button click
-    const logoutBtn = navWrapper.querySelector('#nav-logout-btn');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', async function() {
+    // Handle Account link click
+    const accountLink = navWrapper.querySelector('#nav-account-link');
+    if (accountLink) {
+      accountLink.addEventListener('click', async function(e) {
+        e.preventDefault();
+        navWrapper.classList.remove('menu-open');
+        try {
+          // Ensure Clerk is loaded
+          if (window.PromptLineAuth && window.PromptLineAuth.initClerk) {
+            await window.PromptLineAuth.initClerk();
+          }
+          // Open Clerk user profile modal
+          if (window.Clerk && window.Clerk.loaded && window.Clerk.openUserProfile) {
+            window.Clerk.openUserProfile();
+          } else if (window.PromptLineAuth && window.PromptLineAuth.openUserProfile) {
+            window.PromptLineAuth.openUserProfile();
+          } else {
+            console.error('Clerk user profile not available');
+          }
+        } catch (err) {
+          console.error('Account error:', err);
+        }
+      });
+    }
+
+    // Handle Logout link click
+    const logoutLink = navWrapper.querySelector('#nav-logout-link');
+    if (logoutLink) {
+      logoutLink.addEventListener('click', async function(e) {
+        e.preventDefault();
         navWrapper.classList.remove('menu-open');
         try {
           if (window.PromptLineAuth && window.PromptLineAuth.signOut) {

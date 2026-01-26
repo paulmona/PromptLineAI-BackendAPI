@@ -205,12 +205,32 @@
     }
   }
 
+  function openUserProfile() {
+    if (!window.Clerk || !window.Clerk.loaded) {
+      console.error('[Clerk.js Loader] Cannot open user profile: Clerk is not loaded');
+      return;
+    }
+    
+    if (typeof window.Clerk.openUserProfile !== 'function') {
+      console.error('[Clerk.js Loader] Clerk.openUserProfile is not available');
+      return;
+    }
+    
+    try {
+      window.Clerk.openUserProfile();
+    } catch (error) {
+      console.error('[Clerk.js Loader] Failed to open user profile:', error);
+      throw error;
+    }
+  }
+
   window.PromptLineAuth = {
     initClerk,
     getToken,
     signOut,
     mountSignIn,
     mountSignUp,
+    openUserProfile,
   };
 })();
 
