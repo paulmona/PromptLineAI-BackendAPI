@@ -72,10 +72,14 @@ async function initAuthAndLoad() {
     orgSlug = canonicalSlug;
 
     const orgPill = document.getElementById('org-pill');
-    orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
+    if (orgPill) {
+      orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
+    }
 
     const backLink = document.getElementById('back-to-devices');
-    backLink.href = `/${encodeURIComponent(canonicalSlug)}/devices`;
+    if (backLink) {
+      backLink.href = `/${encodeURIComponent(canonicalSlug)}/devices`;
+    }
 
     hideAuthBanner();
     loadSummary(currentRange);
@@ -150,52 +154,96 @@ function setLoadingState(loading) {
   });
 
   if (loading) {
-    document.getElementById('total-events').textContent = 'Loading...';
-    document.querySelector('#tools-table tbody').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
-    document.querySelector('#event-types-table tbody').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
-    document.querySelector('#files-table tbody').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+    const totalEventsEl = document.getElementById('total-events');
+    if (totalEventsEl) {
+      totalEventsEl.textContent = 'Loading...';
+    }
+    const toolsTbody = document.querySelector('#tools-table tbody');
+    if (toolsTbody) {
+      toolsTbody.innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+    }
+    const eventTypesTbody = document.querySelector('#event-types-table tbody');
+    if (eventTypesTbody) {
+      eventTypesTbody.innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+    }
+    const filesTbody = document.querySelector('#files-table tbody');
+    if (filesTbody) {
+      filesTbody.innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
+    }
   }
 }
 
 function showError(message) {
   const banner = document.getElementById('error-banner');
   const errorMsg = document.getElementById('error-message');
+  if (!banner || !errorMsg) {
+    console.error('Error banner elements not found. Error message:', message);
+    return;
+  }
+  
   errorMsg.textContent = message;
   banner.classList.remove('hidden');
 
   // Setup retry button
   const retryBtn = document.getElementById('retry-btn');
-  retryBtn.onclick = () => loadSummary(currentRange);
+  if (retryBtn) {
+    retryBtn.onclick = () => loadSummary(currentRange);
+  }
 }
 
 function hideError() {
-  document.getElementById('error-banner').classList.add('hidden');
+  const banner = document.getElementById('error-banner');
+  if (banner) {
+    banner.classList.add('hidden');
+  }
 }
 
 function showAuthRequired(message) {
   const banner = document.getElementById('auth-banner');
   const msg = document.getElementById('auth-message');
   const link = document.getElementById('auth-sign-in-link');
+  const dashboardContent = document.getElementById('dashboard-content');
+  
+  if (!banner || !msg || !link) {
+    console.error('Auth banner elements not found. Auth message:', message);
+    return;
+  }
+  
   msg.textContent = message;
   link.href = '/';
   banner.classList.remove('hidden');
-  document.getElementById('dashboard-content').style.display = 'none';
+  
+  if (dashboardContent) {
+    dashboardContent.style.display = 'none';
+  }
 }
 
 function hideAuthBanner() {
-  document.getElementById('auth-banner').classList.add('hidden');
-  document.getElementById('dashboard-content').style.display = '';
+  const banner = document.getElementById('auth-banner');
+  const dashboardContent = document.getElementById('dashboard-content');
+  
+  if (banner) {
+    banner.classList.add('hidden');
+  }
+  if (dashboardContent) {
+    dashboardContent.style.display = '';
+  }
 }
 
 function renderDashboard(data) {
   // Update device name in header span if available (preserving "PromptLineAI - " prefix)
   if (data.device_name) {
     const deviceNameSpan = document.getElementById('device-name-header');
-    deviceNameSpan.textContent = data.device_name;
+    if (deviceNameSpan) {
+      deviceNameSpan.textContent = data.device_name;
+    }
   }
 
   // Summary cards
-  document.getElementById('total-events').textContent = data.total_events.toLocaleString();
+  const totalEventsEl = document.getElementById('total-events');
+  if (totalEventsEl) {
+    totalEventsEl.textContent = data.total_events.toLocaleString();
+  }
 
   // Tools breakdown
   renderTools(data.tools);
