@@ -4,6 +4,12 @@ let isLoading = false;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+  // Hide admin items immediately (before auth check) to prevent FOUC
+  const orgAdminLink = document.getElementById('nav-org-admin-link');
+  const policyLink = document.getElementById('nav-policy-link');
+  if (orgAdminLink) orgAdminLink.classList.add('is-hidden');
+  if (policyLink) policyLink.classList.add('is-hidden');
+  
   initAuthAndLoad();
 });
 
@@ -51,6 +57,19 @@ async function initAuthAndLoad() {
       orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
     }
 
+    // Show/hide admin-only menu items based on role
+    // Defensive: always hide first, then show only if explicitly admin
+    const orgAdminLink = document.getElementById('nav-org-admin-link');
+    const policyLink = document.getElementById('nav-policy-link');
+    if (orgAdminLink) orgAdminLink.classList.add('is-hidden');
+    if (policyLink) policyLink.classList.add('is-hidden');
+    
+    const userRole = me?.user?.role;
+    if (userRole === 'admin') {
+      if (orgAdminLink) orgAdminLink.classList.remove('is-hidden');
+      if (policyLink) policyLink.classList.remove('is-hidden');
+    }
+
     const backLink = document.getElementById('back-to-dashboard');
     if (backLink) {
       backLink.href = `/${encodeURIComponent(canonicalSlug)}`;
@@ -59,6 +78,12 @@ async function initAuthAndLoad() {
     hideAuthBanner();
     loadDevices();
   } catch (err) {
+    // On error, ensure admin items are hidden
+    const orgAdminLink = document.getElementById('nav-org-admin-link');
+    const policyLink = document.getElementById('nav-policy-link');
+    if (orgAdminLink) orgAdminLink.classList.add('is-hidden');
+    if (policyLink) policyLink.classList.add('is-hidden');
+    
     showAuthRequired(err && err.message ? err.message : String(err));
   }
 }

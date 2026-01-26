@@ -17,6 +17,7 @@ export async function meRoutes(fastify: FastifyInstance) {
     return {
       user: {
         id: ctx.internalUserId,
+        role: ctx.role,
       },
       org: {
         id: org.id,

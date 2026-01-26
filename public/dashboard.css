@@ -155,6 +155,72 @@ body {
   /* Inherits styles from .nav-links a */
 }
 
+/* Admin-only menu items - hidden by default, shown via JS when user is admin */
+.is-hidden {
+  display: none;
+}
+
+/* Strengthen CSS for admin menu items to prevent visibility issues */
+.nav-org-admin-link.is-hidden,
+.nav-policy-link.is-hidden {
+  display: none !important;
+}
+
+/* Organization profile modal (for mountOrganizationProfile fallback) */
+.org-profile-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.org-profile-modal.hidden {
+  display: none;
+}
+
+.org-profile-modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  position: relative;
+  padding: 20px;
+}
+
+.org-profile-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.org-profile-modal-close:hover {
+  background-color: #f0f0f0;
+}
+
+#org-profile-container {
+  width: 100%;
+  min-height: 400px;
+}
+
 /* Legacy logout button styles - kept for backward compatibility if needed */
 .nav-logout-btn {
   margin-top: 8px;

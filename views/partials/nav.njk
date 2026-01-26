@@ -6,6 +6,8 @@
     {% if showUserControls %}
     <li class="nav-separator"></li>
     <li><a href="#" id="nav-account-link" class="nav-account-link">Account</a></li>
+    <li><a href="#" id="nav-org-admin-link" class="nav-org-admin-link is-hidden">Org Administration</a></li>
+    <li><a href="/{{ orgSlug }}/policy" id="nav-policy-link" class="nav-policy-link is-hidden">AI Compliance Policy</a></li>
     <li><a href="#" id="nav-logout-link" class="nav-logout-link">Logout</a></li>
     {% endif %}
     {% endif %}

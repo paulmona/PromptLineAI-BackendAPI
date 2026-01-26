@@ -12,6 +12,7 @@ import { ingestRoutes } from './routes/ingest.js';
 import { summaryRoutes } from './routes/summary.js';
 import { meRoutes } from './routes/me.js';
 import { devicesRoutes } from './routes/devices.js';
+import { requireClerkAuth, requireOrgAdmin } from './auth/middleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,6 +106,20 @@ fastify.get('/', async (_request, reply: FastifyReply) => {
   return (reply as any).view('pages/landing.njk', getTemplateContext({
     showUserControls: false,
     orgSlug: null,
+  }));
+});
+
+// Admin-only API endpoint to check policy access
+fastify.get('/admin/policy-access', { preHandler: [requireClerkAuth, requireOrgAdmin] }, async (_request, reply) => {
+  return { allowed: true };
+});
+
+// Policy page route (must be before /:orgSlug/devices)
+fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/policy', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  return (reply as any).view('pages/policy.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
   }));
 });
 

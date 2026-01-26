@@ -15,8 +15,8 @@
       navWrapper.classList.toggle('menu-open');
     });
 
-    // Close menu when clicking nav links (except Account and Logout which have special handlers)
-    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-logout-link)');
+    // Close menu when clicking nav links (except Account, Org Admin, Policy, and Logout which have special handlers)
+    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-org-admin-link):not(#nav-policy-link):not(#nav-logout-link)');
     navLinks.forEach(link => {
       link.addEventListener('click', function() {
         navWrapper.classList.remove('menu-open');
@@ -45,6 +45,40 @@
         } catch (err) {
           console.error('Account error:', err);
         }
+      });
+    }
+
+    // Handle Org Administration link click
+    const orgAdminLink = navWrapper.querySelector('#nav-org-admin-link');
+    if (orgAdminLink) {
+      orgAdminLink.addEventListener('click', async function(e) {
+        e.preventDefault();
+        navWrapper.classList.remove('menu-open');
+        try {
+          // Ensure Clerk is loaded
+          if (window.PromptLineAuth && window.PromptLineAuth.initClerk) {
+            await window.PromptLineAuth.initClerk();
+          }
+          // Open Clerk organization profile modal
+          if (window.Clerk && window.Clerk.loaded && window.Clerk.openOrganizationProfile) {
+            window.Clerk.openOrganizationProfile();
+          } else if (window.PromptLineAuth && window.PromptLineAuth.openOrganizationProfile) {
+            window.PromptLineAuth.openOrganizationProfile();
+          } else {
+            console.error('Clerk organization profile not available');
+          }
+        } catch (err) {
+          console.error('Org Administration error:', err);
+        }
+      });
+    }
+
+    // Handle Policy link click (internal route)
+    const policyLink = navWrapper.querySelector('#nav-policy-link');
+    if (policyLink) {
+      policyLink.addEventListener('click', function(e) {
+        // Let the link navigate naturally, just close the menu
+        navWrapper.classList.remove('menu-open');
       });
     }
 

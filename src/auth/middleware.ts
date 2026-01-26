@@ -12,6 +12,7 @@ declare module 'fastify' {
       internalOrgId: string;
       orgSlug: string;
       internalUserId: string;
+      role: 'admin' | 'member';
     };
   }
 }
@@ -60,6 +61,44 @@ async function resolveClerkOrgId(args: { clerkUserId: string; tokenOrgId: string
 
   logger.debug({ clerkUserId: args.clerkUserId, resolvedOrgId: unique[0] }, 'Resolved organization ID from Clerk API');
   return unique[0];
+}
+
+async function deriveUserRole(args: { clerkUserId: string; clerkOrgId: string }): Promise<'admin' | 'member'> {
+  try {
+    // Fetch user's memberships and find the one for this org
+    const memberships = await clerkClient.users.getOrganizationMembershipList({
+      userId: args.clerkUserId,
+      limit: 10,
+    });
+
+    // Find membership for this specific org
+    const membership = memberships.data?.find(
+      (m: any) => m?.organization?.id === args.clerkOrgId
+    );
+
+    if (!membership) {
+      logger.warn({ clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId }, 'No membership found for org, defaulting to member');
+      return 'member';
+    }
+
+    // Clerk membership roles: typically "org:admin", "org:member", or just "admin", "member"
+    const role = membership.role;
+    const roleStr = typeof role === 'string' ? role.toLowerCase() : '';
+    
+    // Map Clerk roles to our app roles
+    // If role contains "admin" (case-insensitive), treat as admin
+    if (roleStr.includes('admin')) {
+      logger.debug({ clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId, clerkRole: role }, 'User role derived as admin');
+      return 'admin';
+    }
+
+    logger.debug({ clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId, clerkRole: role }, 'User role derived as member');
+    return 'member';
+  } catch (err) {
+    logger.error({ err, clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId }, 'Failed to fetch membership role, defaulting to member');
+    // Fail-safe: default to member if we can't determine role
+    return 'member';
+  }
 }
 
 export async function requireClerkAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -112,12 +151,16 @@ export async function requireClerkAuth(request: FastifyRequest, reply: FastifyRe
       orgId: ensuredOrg.id,
     });
 
+    // Derive user role from Clerk org membership
+    const role = await deriveUserRole({ clerkUserId, clerkOrgId });
+
     request.authContext = {
       clerkUserId,
       clerkOrgId,
       internalOrgId: ensuredOrg.id,
       orgSlug: ensuredOrg.slug ?? org.slug,
       internalUserId: ensuredUser.id,
+      role,
     };
   } catch (err) {
     // Log full error details for debugging
@@ -147,6 +190,18 @@ export async function requireClerkAuth(request: FastifyRequest, reply: FastifyRe
       return void reply.code(403).send({ error: message });
     }
     return void reply.code(401).send({ error: 'Unauthorized' });
+  }
+}
+
+export async function requireOrgAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const ctx = request.authContext;
+  if (!ctx) {
+    return void reply.code(401).send({ error: 'Unauthorized' });
+  }
+
+  if (ctx.role !== 'admin') {
+    logger.debug({ clerkUserId: ctx.clerkUserId, role: ctx.role }, 'Access denied: admin role required');
+    return void reply.code(403).send({ error: 'Forbidden: admin access required' });
   }
 }
 

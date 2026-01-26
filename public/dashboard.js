@@ -11,6 +11,12 @@ let orgSlug = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+  // Hide admin items immediately (before auth check) to prevent FOUC
+  const orgAdminLink = document.getElementById('nav-org-admin-link');
+  const policyLink = document.getElementById('nav-policy-link');
+  if (orgAdminLink) orgAdminLink.classList.add('is-hidden');
+  if (policyLink) policyLink.classList.add('is-hidden');
+  
   setupRangeSelector();
   initAuthAndLoad();
 });
@@ -55,6 +61,19 @@ async function initAuthAndLoad() {
     const orgPill = document.getElementById('org-pill');
     orgPill.textContent = me?.org?.name ? `${me.org.name} (${canonicalSlug})` : canonicalSlug;
 
+    // Show/hide admin-only menu items based on role
+    // Defensive: always hide first, then show only if explicitly admin
+    const orgAdminLink = document.getElementById('nav-org-admin-link');
+    const policyLink = document.getElementById('nav-policy-link');
+    if (orgAdminLink) orgAdminLink.classList.add('is-hidden');
+    if (policyLink) policyLink.classList.add('is-hidden');
+    
+    const userRole = me?.user?.role;
+    if (userRole === 'admin') {
+      if (orgAdminLink) orgAdminLink.classList.remove('is-hidden');
+      if (policyLink) policyLink.classList.remove('is-hidden');
+    }
+
     orgSlug = canonicalSlug;
 
     // Make Unique Devices card clickable
@@ -63,6 +82,12 @@ async function initAuthAndLoad() {
     hideAuthBanner();
     loadSummary(currentRange);
   } catch (err) {
+    // On error, ensure admin items are hidden
+    const orgAdminLink = document.getElementById('nav-org-admin-link');
+    const policyLink = document.getElementById('nav-policy-link');
+    if (orgAdminLink) orgAdminLink.classList.add('is-hidden');
+    if (policyLink) policyLink.classList.add('is-hidden');
+    
     showAuthRequired(err && err.message ? err.message : String(err));
   }
 }

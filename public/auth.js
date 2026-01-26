@@ -224,6 +224,83 @@
     }
   }
 
+  function openOrganizationProfile() {
+    if (!window.Clerk || !window.Clerk.loaded) {
+      console.error('[Clerk.js Loader] Cannot open organization profile: Clerk is not loaded');
+      return;
+    }
+    
+    // Try openOrganizationProfile first (preferred - opens as modal)
+    if (typeof window.Clerk.openOrganizationProfile === 'function') {
+      try {
+        window.Clerk.openOrganizationProfile();
+        return;
+      } catch (error) {
+        console.error('[Clerk.js Loader] Failed to open organization profile:', error);
+        throw error;
+      }
+    }
+    
+    // Fallback: If openOrganizationProfile doesn't exist, use mountOrganizationProfile
+    // This requires creating a modal container (more complex)
+    console.warn('[Clerk.js Loader] openOrganizationProfile not available, falling back to mountOrganizationProfile');
+    
+    // Check if mountOrganizationProfile is available
+    if (typeof window.Clerk.mountOrganizationProfile !== 'function') {
+      console.error('[Clerk.js Loader] Neither openOrganizationProfile nor mountOrganizationProfile is available');
+      return;
+    }
+    
+    // Create or get modal container
+    let modalContainer = document.getElementById('org-profile-container');
+    let modal = document.getElementById('org-profile-modal');
+    
+    if (!modalContainer) {
+      // Create modal structure if it doesn't exist
+      modal = document.createElement('div');
+      modal.id = 'org-profile-modal';
+      modal.className = 'org-profile-modal';
+      
+      const modalContent = document.createElement('div');
+      modalContent.className = 'org-profile-modal-content';
+      
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'org-profile-modal-close';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+      
+      modalContainer = document.createElement('div');
+      modalContainer.id = 'org-profile-container';
+      
+      modalContent.appendChild(closeBtn);
+      modalContent.appendChild(modalContainer);
+      modal.appendChild(modalContent);
+      
+      // Close modal when clicking outside
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.add('hidden');
+        }
+      });
+      
+      document.body.appendChild(modal);
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Mount organization profile
+    try {
+      window.Clerk.mountOrganizationProfile(modalContainer, {});
+    } catch (error) {
+      console.error('[Clerk.js Loader] Failed to mount organization profile:', error);
+      modal.classList.add('hidden');
+      throw error;
+    }
+  }
+
   window.PromptLineAuth = {
     initClerk,
     getToken,
@@ -231,6 +308,7 @@
     mountSignIn,
     mountSignUp,
     openUserProfile,
+    openOrganizationProfile,
   };
 })();
 
