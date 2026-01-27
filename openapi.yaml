@@ -26,6 +26,8 @@ tags:
     description: Event ingestion endpoints
   - name: Reporting
     description: Summary and reporting endpoints
+  - name: Configuration
+    description: Extension configuration endpoints
 
 paths:
   /healthz:
@@ -306,6 +308,57 @@ paths:
                 error: 'Internal server error'
                 message: 'Database connection failed'
 
+  /config:
+    get:
+      tags:
+        - Configuration
+      summary: Get policy configuration for extension
+      description: |
+        Returns the policy configuration for the organization associated with the ingest key.
+        
+        **Authentication**: Requires `X-INGEST-KEY` header (same as `/ingest`).
+        
+        **Tenant Isolation**:
+        - Organization is derived EXCLUSIVELY from the `X-INGEST-KEY` header.
+        - The ingest key is hashed server-side and mapped to a single organization.
+        - Returns configuration for that organization only.
+        
+        **Default Values**:
+        - If no configuration exists for the organization, returns default values (all features enabled).
+      operationId: getConfig
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Policy configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyConfig'
+              example:
+                llms:
+                  chatgpt: true
+                  gemini: true
+                fileUpload:
+                  logFileNames: true
+        '401':
+          description: Missing, invalid, or revoked ingest key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Invalid ingest key'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Internal server error'
+                message: 'Failed to get policy config'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -578,3 +631,33 @@ components:
           type: object
           description: Validation error details (for 400 errors)
           additionalProperties: true
+
+    PolicyConfig:
+      type: object
+      required:
+        - llms
+        - fileUpload
+      properties:
+        llms:
+          type: object
+          required:
+            - chatgpt
+            - gemini
+          properties:
+            chatgpt:
+              type: boolean
+              description: Whether ChatGPT tracking is enabled
+              example: true
+            gemini:
+              type: boolean
+              description: Whether Google Gemini tracking is enabled
+              example: true
+        fileUpload:
+          type: object
+          required:
+            - logFileNames
+          properties:
+            logFileNames:
+              type: boolean
+              description: Whether file names should be logged (vs. only metadata)
+              example: true

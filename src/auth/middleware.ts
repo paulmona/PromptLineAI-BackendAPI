@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { clerkClient, verifyClerkBearerToken } from './clerk.js';
 import { getSingleHeaderValue } from './headers.js';
 import { ensureOrgByExternalOrgId, ensureUserByExternalUid } from '../db/queries.js';
+import { hashIngestKey, resolveOrgIdFromIngestKeyHash } from '../db/ingest-keys.js';
 import logger from '../logger.js';
 
 declare module 'fastify' {
@@ -13,6 +14,9 @@ declare module 'fastify' {
       orgSlug: string;
       internalUserId: string;
       role: 'admin' | 'member';
+    };
+    ingestAuth?: {
+      orgId: string;
     };
   }
 }
@@ -203,5 +207,27 @@ export async function requireOrgAdmin(request: FastifyRequest, reply: FastifyRep
     logger.debug({ clerkUserId: ctx.clerkUserId, role: ctx.role }, 'Access denied: admin role required');
     return void reply.code(403).send({ error: 'Forbidden: admin access required' });
   }
+}
+
+export async function requireIngestKeyAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const ingestKeyHeader = getSingleHeaderValue(
+    request.headers['x-ingest-key'] as string | string[] | undefined
+  );
+
+  if (!ingestKeyHeader.ok) {
+    const msg = ingestKeyHeader.reason === 'missing' ? 'Missing X-INGEST-KEY' : 'Invalid ingest key';
+    return void reply.code(401).send({ error: msg });
+  }
+
+  const ingestKey = ingestKeyHeader.value;
+  const ingestKeyHash = hashIngestKey(ingestKey);
+
+  const resolved = await resolveOrgIdFromIngestKeyHash(ingestKeyHash);
+  if (!resolved) {
+    return void reply.code(401).send({ error: 'Invalid ingest key' });
+  }
+
+  // Attach orgId to request for use in route handler
+  request.ingestAuth = { orgId: resolved.orgId };
 }
 

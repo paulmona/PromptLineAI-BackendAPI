@@ -1,10 +1,42 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import logger from '../logger.js';
-import { requireClerkAuth, requireOrgAdmin } from '../auth/middleware.js';
+import { requireClerkAuth, requireOrgAdmin, requireIngestKeyAuth } from '../auth/middleware.js';
 import { getOrgPolicyConfig, updateOrgPolicyConfig } from '../db/queries.js';
 import { policyConfigSchema } from '../validation.js';
 
 export async function policyRoutes(fastify: FastifyInstance) {
+  // GET /config - Get policy configuration for extension (authenticated via X-INGEST-KEY)
+  fastify.get(
+    '/config',
+    { preHandler: [requireIngestKeyAuth] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const ingestAuth = request.ingestAuth;
+        if (!ingestAuth?.orgId) {
+          return reply.code(401).send({ error: 'Unauthorized' });
+        }
+
+        const config = await getOrgPolicyConfig(ingestAuth.orgId);
+
+        // Return defaults if config doesn't exist (new orgs)
+        if (!config) {
+          return {
+            llms: { chatgpt: true, gemini: true },
+            fileUpload: { logFileNames: true },
+          };
+        }
+
+        return config;
+      } catch (err) {
+        logger.error({ err }, 'Failed to get policy config for extension');
+        return reply.code(500).send({
+          error: 'Internal server error',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+  );
+
   // GET /:orgSlug/policy/config - Get current policy configuration
   fastify.get<{ Params: { orgSlug: string } }>(
     '/:orgSlug/policy/config',
