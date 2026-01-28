@@ -125,6 +125,14 @@ fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/policy', async (request:
   }));
 });
 
+fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/key-generation', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  return (reply as any).view('pages/key-generation.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
+  }));
+});
+
 // Device detail route (must be before /:orgSlug/devices)
 fastify.get<{ Params: { orgSlug: string; deviceId: string } }>('/:orgSlug/devices/:deviceId', async (request: FastifyRequest<{ Params: { orgSlug: string; deviceId: string } }>, reply: FastifyReply) => {
   const orgSlug = decodeURIComponent(request.params.orgSlug);

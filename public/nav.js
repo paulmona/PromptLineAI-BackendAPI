@@ -15,13 +15,27 @@
       navWrapper.classList.toggle('menu-open');
     });
 
-    // Close menu when clicking nav links (except Account, Org Admin, Policy, and Logout which have special handlers)
-    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-org-admin-link):not(#nav-policy-link):not(#nav-logout-link)');
+    // Close menu when clicking nav links (except Account, Settings toggle, Key Generation, Users, Policy, and Logout which have special handlers)
+    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-settings-toggle):not(#nav-key-generation-link):not(#nav-users-link):not(#nav-policy-link):not(#nav-logout-link)');
     navLinks.forEach(link => {
       link.addEventListener('click', function() {
         navWrapper.classList.remove('menu-open');
       });
     });
+
+    // Handle Settings toggle click
+    const settingsToggle = navWrapper.querySelector('#nav-settings-toggle');
+    if (settingsToggle) {
+      settingsToggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const settingsContainer = document.getElementById('nav-settings');
+        const submenu = settingsContainer?.querySelector('.nav-settings-submenu');
+        if (submenu) {
+          submenu.classList.toggle('is-collapsed');
+        }
+      });
+    }
 
     // Handle Account link click
     const accountLink = navWrapper.querySelector('#nav-account-link');
@@ -48,10 +62,10 @@
       });
     }
 
-    // Handle Org Administration link click
-    const orgAdminLink = navWrapper.querySelector('#nav-org-admin-link');
-    if (orgAdminLink) {
-      orgAdminLink.addEventListener('click', async function(e) {
+    // Handle Users link click (opens Clerk organization profile)
+    const usersLink = navWrapper.querySelector('#nav-users-link');
+    if (usersLink) {
+      usersLink.addEventListener('click', async function(e) {
         e.preventDefault();
         navWrapper.classList.remove('menu-open');
         try {
@@ -68,8 +82,17 @@
             console.error('Clerk organization profile not available');
           }
         } catch (err) {
-          console.error('Org Administration error:', err);
+          console.error('Users error:', err);
         }
+      });
+    }
+
+    // Handle Key Generation link click (internal route)
+    const keyGenerationLink = navWrapper.querySelector('#nav-key-generation-link');
+    if (keyGenerationLink) {
+      keyGenerationLink.addEventListener('click', function(e) {
+        // Let the link navigate naturally, just close the menu
+        navWrapper.classList.remove('menu-open');
       });
     }
 

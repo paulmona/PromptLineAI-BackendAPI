@@ -6,8 +6,14 @@
     {% if showUserControls %}
     <li class="nav-separator"></li>
     <li><a href="#" id="nav-account-link" class="nav-account-link">Account</a></li>
-    <li><a href="#" id="nav-org-admin-link" class="nav-org-admin-link is-hidden">Org Administration</a></li>
-    <li><a href="/{{ orgSlug }}/policy" id="nav-policy-link" class="nav-policy-link is-hidden">AI Compliance Policy</a></li>
+    <li id="nav-settings" class="is-hidden">
+      <button id="nav-settings-toggle" class="nav-settings-toggle" type="button">Settings</button>
+      <ul class="nav-settings-submenu is-collapsed">
+        <li><a href="/{{ orgSlug }}/key-generation" id="nav-key-generation-link" class="nav-key-generation-link">Key Generation</a></li>
+        <li><a href="#" id="nav-users-link" class="nav-users-link">Users</a></li>
+        <li><a href="/{{ orgSlug }}/policy" id="nav-policy-link" class="nav-policy-link">Policy</a></li>
+      </ul>
+    </li>
     <li><a href="#" id="nav-logout-link" class="nav-logout-link">Logout</a></li>
     {% endif %}
     {% endif %}
