@@ -3,6 +3,7 @@ import { clerkClient, verifyClerkBearerToken } from './clerk.js';
 import { getSingleHeaderValue } from './headers.js';
 import { ensureOrgByExternalOrgId, ensureUserByExternalUid } from '../db/queries.js';
 import logger from '../logger.js';
+import env from '../env.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -202,6 +203,30 @@ export async function requireOrgAdmin(request: FastifyRequest, reply: FastifyRep
   if (ctx.role !== 'admin') {
     logger.debug({ clerkUserId: ctx.clerkUserId, role: ctx.role }, 'Access denied: admin role required');
     return void reply.code(403).send({ error: 'Forbidden: admin access required' });
+  }
+}
+
+export async function requirePlatformAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  // First ensure Clerk auth is valid (populates authContext)
+  await requireClerkAuth(request, reply);
+  
+  // If requireClerkAuth already sent a response, stop here
+  if (reply.sent) {
+    return;
+  }
+
+  const ctx = request.authContext;
+  if (!ctx) {
+    return void reply.code(401).send({ error: 'Unauthorized' });
+  }
+
+  // Check if user's org matches the platform admin org ID
+  if (ctx.clerkOrgId !== env.PLATFORM_ADMIN_CLERK_ORG_ID) {
+    logger.debug(
+      { clerkUserId: ctx.clerkUserId, clerkOrgId: ctx.clerkOrgId, expectedOrgId: env.PLATFORM_ADMIN_CLERK_ORG_ID },
+      'Access denied: platform admin org membership required'
+    );
+    return void reply.code(403).send({ error: 'Forbidden: platform admin access required' });
   }
 }
 

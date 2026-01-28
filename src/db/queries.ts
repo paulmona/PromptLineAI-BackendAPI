@@ -1,6 +1,6 @@
-import { eq, sql, and, gte, desc, isNotNull } from 'drizzle-orm';
+import { eq, sql, and, gte, desc, isNotNull, isNull, count } from 'drizzle-orm';
 import { db } from './index.js';
-import { orgs, users, devices, events } from './schema.js';
+import { orgs, users, devices, events, ingestKeys } from './schema.js';
 import logger from '../logger.js';
 import type { EventInput } from '../validation.js';
 import { randomUUID } from 'crypto';
@@ -446,4 +446,154 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
   }
 
   return result;
+}
+
+/**
+ * Get paginated list of organizations with counts (devices, events, ingest keys).
+ * Used by platform admin interface.
+ */
+export async function getOrgsList(args: { limit: number; offset: number }) {
+  const { limit, offset } = args;
+
+  // Get total count
+  const totalResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(orgs);
+  const total = totalResult[0]?.count ?? 0;
+
+  // Get orgs with counts using subqueries
+  const orgsList = await db
+    .select({
+      id: orgs.id,
+      name: orgs.name,
+      slug: orgs.slug,
+      externalOrgId: orgs.externalOrgId,
+      createdAt: orgs.createdAt,
+    })
+    .from(orgs)
+    .orderBy(desc(orgs.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Get counts for each org
+  const orgsWithCounts = await Promise.all(
+    orgsList.map(async (org) => {
+      // Count devices
+      const devicesCountResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(devices)
+        .where(eq(devices.orgId, org.id));
+      const devicesCount = devicesCountResult[0]?.count ?? 0;
+
+      // Count events
+      const eventsCountResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(events)
+        .where(eq(events.orgId, org.id));
+      const eventsCount = eventsCountResult[0]?.count ?? 0;
+
+      // Count ingest keys (active only, where revoked_at IS NULL)
+      const ingestKeysCountResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(ingestKeys)
+        .where(and(eq(ingestKeys.orgId, org.id), isNull(ingestKeys.revokedAt)));
+      const ingestKeysCount = ingestKeysCountResult[0]?.count ?? 0;
+
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        external_org_id: org.externalOrgId,
+        created_at: org.createdAt.toISOString(),
+        counts: {
+          devices_count: devicesCount,
+          events_count: eventsCount,
+          ingest_keys_count: ingestKeysCount,
+        },
+      };
+    })
+  );
+
+  return {
+    orgs: orgsWithCounts,
+    total,
+    limit,
+    offset,
+  };
+}
+
+/**
+ * Get organization detail with counts.
+ * Used by platform admin interface.
+ */
+export async function getOrgDetail(orgId: string) {
+  const orgResult = await db
+    .select({
+      id: orgs.id,
+      name: orgs.name,
+      slug: orgs.slug,
+      externalOrgId: orgs.externalOrgId,
+      createdAt: orgs.createdAt,
+    })
+    .from(orgs)
+    .where(eq(orgs.id, orgId))
+    .limit(1);
+
+  if (orgResult.length === 0) {
+    return null;
+  }
+
+  const org = orgResult[0];
+
+  // Count devices
+  const devicesCountResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(devices)
+    .where(eq(devices.orgId, org.id));
+  const devicesCount = devicesCountResult[0]?.count ?? 0;
+
+  // Count events
+  const eventsCountResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(events)
+    .where(eq(events.orgId, org.id));
+  const eventsCount = eventsCountResult[0]?.count ?? 0;
+
+  // Count ingest keys (active only, where revoked_at IS NULL)
+  const ingestKeysCountResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(ingestKeys)
+    .where(and(eq(ingestKeys.orgId, org.id), isNull(ingestKeys.revokedAt)));
+  const ingestKeysCount = ingestKeysCountResult[0]?.count ?? 0;
+
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    external_org_id: org.externalOrgId,
+    created_at: org.createdAt.toISOString(),
+    counts: {
+      devices_count: devicesCount,
+      events_count: eventsCount,
+      ingest_keys_count: ingestKeysCount,
+    },
+  };
+}
+
+/**
+ * Revoke all active ingest keys for an organization.
+ * Sets revoked_at = now() for all keys where revoked_at IS NULL.
+ * Returns the count of revoked keys.
+ */
+export async function revokeOrgIngestKeys(orgId: string): Promise<number> {
+  const now = new Date();
+  const result = await db
+    .update(ingestKeys)
+    .set({ revokedAt: now })
+    .where(and(eq(ingestKeys.orgId, orgId), isNull(ingestKeys.revokedAt)))
+    .returning({ id: ingestKeys.id });
+
+  const revokedCount = result.length;
+  logger.info({ orgId, revokedCount }, 'Revoked ingest keys for organization');
+  return revokedCount;
 }

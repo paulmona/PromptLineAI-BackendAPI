@@ -26,6 +26,8 @@ tags:
     description: Event ingestion endpoints
   - name: Reporting
     description: Summary and reporting endpoints
+  - name: Platform Admin
+    description: Platform administration endpoints (platform admin only)
 
 paths:
   /healthz:
@@ -306,6 +308,247 @@ paths:
                 error: 'Internal server error'
                 message: 'Database connection failed'
 
+  /admin/orgs:
+    get:
+      tags:
+        - Platform Admin
+      summary: List organizations
+      description: |
+        Returns a paginated list of all organizations in the system.
+        
+        **Authentication**: Requires platform admin access (member of platform admin Clerk organization).
+        
+        **Pagination**: Default limit is 50, maximum is 100. Use `offset` to paginate through results.
+      operationId: listOrgs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of organizations to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          example: 50
+        - name: offset
+          in: query
+          description: Number of organizations to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+      responses:
+        '200':
+          description: Paginated list of organizations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgListResponse'
+        '401':
+          description: Missing or invalid Clerk session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Valid token but user is not a platform admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/orgs/{orgId}:
+    get:
+      tags:
+        - Platform Admin
+      summary: Get organization details
+      description: |
+        Returns detailed information about a specific organization, including counts of devices, events, and ingest keys.
+        
+        **Authentication**: Requires platform admin access.
+      operationId: getOrgDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          description: Organization UUID
+          schema:
+            type: string
+            format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrgDetail'
+        '401':
+          description: Missing or invalid Clerk session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Valid token but user is not a platform admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Platform Admin
+      summary: Delete organization
+      description: |
+        Permanently deletes an organization and all its tenant data.
+        
+        **⚠️ DESTRUCTIVE OPERATION**: This action cannot be undone. All devices, events, and ingest keys for the organization will be deleted. User associations will be orphaned (users remain but org_id is set to NULL).
+        
+        **Authentication**: Requires platform admin access.
+        
+        **Confirmation Required**: This endpoint requires the `X-ADMIN-CONFIRM: DELETE` header to prevent accidental deletions.
+      operationId: deleteOrg
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          description: Organization UUID
+          schema:
+            type: string
+            format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        - name: X-ADMIN-CONFIRM
+          in: header
+          required: true
+          description: Confirmation header (must be exactly "DELETE")
+          schema:
+            type: string
+            enum: ['DELETE']
+          example: 'DELETE'
+      responses:
+        '204':
+          description: Organization deleted successfully
+        '400':
+          description: Missing or incorrect X-ADMIN-CONFIRM header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Confirmation required'
+                message: 'DELETE requests require X-ADMIN-CONFIRM: DELETE header'
+        '401':
+          description: Missing or invalid Clerk session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Valid token but user is not a platform admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/orgs/{orgId}/revoke-ingest-keys:
+    post:
+      tags:
+        - Platform Admin
+      summary: Revoke all ingest keys for an organization
+      description: |
+        Revokes all active ingest keys for an organization by setting `revoked_at = now()` for all keys where `revoked_at IS NULL`.
+        
+        **Authentication**: Requires platform admin access.
+      operationId: revokeIngestKeys
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          description: Organization UUID
+          schema:
+            type: string
+            format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+      responses:
+        '200':
+          description: Ingest keys revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeKeysResponse'
+        '401':
+          description: Missing or invalid Clerk session token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Valid token but user is not a platform admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -578,3 +821,143 @@ components:
           type: object
           description: Validation error details (for 400 errors)
           additionalProperties: true
+
+    OrgListItem:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+        - counts
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Internal organization UUID
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        name:
+          type: string
+          description: Organization name
+          example: 'Acme Corp'
+        slug:
+          type: string
+          nullable: true
+          description: Organization slug (for routing)
+          example: 'acme-corp'
+        external_org_id:
+          type: string
+          nullable: true
+          description: Clerk organization ID
+          example: 'org_xxxxxxxxxxxxx'
+        created_at:
+          type: string
+          format: date-time
+          description: Organization creation timestamp
+          example: '2026-01-16T17:00:00.000Z'
+        counts:
+          type: object
+          required:
+            - devices_count
+            - events_count
+            - ingest_keys_count
+          properties:
+            devices_count:
+              type: integer
+              description: Total number of devices
+              example: 10
+            events_count:
+              type: integer
+              description: Total number of events
+              example: 1500
+            ingest_keys_count:
+              type: integer
+              description: Number of active (non-revoked) ingest keys
+              example: 2
+
+    OrgDetail:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+        - counts
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Internal organization UUID
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        name:
+          type: string
+          description: Organization name
+          example: 'Acme Corp'
+        slug:
+          type: string
+          nullable: true
+          description: Organization slug (for routing)
+          example: 'acme-corp'
+        external_org_id:
+          type: string
+          nullable: true
+          description: Clerk organization ID
+          example: 'org_xxxxxxxxxxxxx'
+        created_at:
+          type: string
+          format: date-time
+          description: Organization creation timestamp
+          example: '2026-01-16T17:00:00.000Z'
+        counts:
+          type: object
+          required:
+            - devices_count
+            - events_count
+            - ingest_keys_count
+          properties:
+            devices_count:
+              type: integer
+              description: Total number of devices
+              example: 10
+            events_count:
+              type: integer
+              description: Total number of events
+              example: 1500
+            ingest_keys_count:
+              type: integer
+              description: Number of active (non-revoked) ingest keys
+              example: 2
+
+    OrgListResponse:
+      type: object
+      required:
+        - orgs
+        - total
+        - limit
+        - offset
+      properties:
+        orgs:
+          type: array
+          description: List of organizations
+          items:
+            $ref: '#/components/schemas/OrgListItem'
+        total:
+          type: integer
+          description: Total number of organizations (across all pages)
+          example: 25
+        limit:
+          type: integer
+          description: Maximum number of organizations per page
+          example: 50
+        offset:
+          type: integer
+          description: Number of organizations skipped
+          example: 0
+
+    RevokeKeysResponse:
+      type: object
+      required:
+        - revoked_count
+      properties:
+        revoked_count:
+          type: integer
+          description: Number of ingest keys that were revoked
+          example: 3
