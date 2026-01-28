@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import logger from '../logger.js';
 import { requirePlatformAdmin } from '../auth/middleware.js';
+import { clerkClient } from '../auth/clerk.js';
 import { getOrgsList, getOrgDetail, revokeOrgIngestKeys } from '../db/queries.js';
 import { db } from '../db/index.js';
 import { orgs } from '../db/schema.js';
@@ -118,23 +119,99 @@ export async function adminRoutes(fastify: FastifyInstance) {
           });
         }
 
+        // Fetch org record to get externalOrgId before deletion
+        const orgResult = await db
+          .select({ id: orgs.id, externalOrgId: orgs.externalOrgId })
+          .from(orgs)
+          .where(eq(orgs.id, orgId))
+          .limit(1);
+
+        if (orgResult.length === 0) {
+          return reply.code(404).send({
+            error: 'Organization not found',
+          });
+        }
+
+        const externalOrgId = orgResult[0].externalOrgId;
+
         // Delete org in transaction (CASCADE will handle dependent rows)
         await db.transaction(async (tx) => {
-          // Verify org exists first
-          const orgResult = await tx
-            .select({ id: orgs.id })
-            .from(orgs)
-            .where(eq(orgs.id, orgId))
-            .limit(1);
-
-          if (orgResult.length === 0) {
-            throw new Error('Organization not found');
-          }
-
           // Delete org - CASCADE will handle devices, events, ingest_keys
           // SET NULL will handle users.org_id
           await tx.delete(orgs).where(eq(orgs.id, orgId));
         });
+
+        // After successful DB deletion, verify and delete from Clerk
+        if (externalOrgId) {
+          try {
+            // First, verify the org exists in Clerk
+            logger.debug({ orgId, externalOrgId }, 'Verifying organization exists in Clerk before deletion');
+            const clerkOrg = await clerkClient.organizations.getOrganization({ organizationId: externalOrgId });
+            
+            if (!clerkOrg) {
+              logger.warn({ orgId, externalOrgId }, 'Organization not found in Clerk (may have been deleted already)');
+            } else {
+              // Org exists, proceed with deletion
+              logger.debug({ orgId, externalOrgId, clerkOrgName: clerkOrg.name }, 'Organization found in Clerk, proceeding with deletion');
+              
+              try {
+                await clerkClient.organizations.deleteOrganization(externalOrgId);
+                logger.info({ orgId, externalOrgId }, 'Platform admin: deleted organization from Clerk');
+              } catch (deleteErr: any) {
+                // Log complete error details for debugging
+                const fullError = {
+                  type: deleteErr?.constructor?.name,
+                  message: deleteErr?.message,
+                  code: deleteErr?.code,
+                  status: deleteErr?.status,
+                  clerkError: deleteErr?.clerkError,
+                  clerkTraceId: deleteErr?.clerkTraceId,
+                  errors: deleteErr?.errors,
+                  aggregateErrors: deleteErr?.aggregateErrors,
+                  stack: deleteErr?.stack,
+                };
+                
+                logger.error(
+                  { orgId, externalOrgId, fullError },
+                  'Platform admin: deleteOrganization failed with detailed error'
+                );
+                
+                // Re-throw to be caught by outer catch
+                throw deleteErr;
+              }
+            }
+          } catch (err: any) {
+            // Enhanced error handling
+            const errorCode = err?.code || err?.status || 'unknown';
+            const errorMessage = err?.message || 'Unknown error';
+            
+            // Log full error structure for debugging
+            logger.error(
+              {
+                orgId,
+                externalOrgId,
+                errorCode,
+                errorMessage,
+                errorType: err?.constructor?.name,
+                clerkError: err?.clerkError,
+                clerkTraceId: err?.clerkTraceId,
+                status: err?.status,
+                errors: err?.errors,
+                fullError: err,
+              },
+              'Platform admin: failed to delete organization from Clerk (org already deleted from database)'
+            );
+            
+            if (errorCode === 404 || err?.status === 404) {
+              logger.warn(
+                { orgId, externalOrgId, errorCode, errorMessage },
+                'Platform admin: organization not found in Clerk (may have been deleted already or externalOrgId is incorrect)'
+              );
+            }
+          }
+        } else {
+          logger.warn({ orgId }, 'Platform admin: org has no external_org_id, skipping Clerk deletion');
+        }
 
         logger.warn({ orgId }, 'Platform admin: deleted organization');
         return reply.code(204).send();

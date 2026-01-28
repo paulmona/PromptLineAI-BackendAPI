@@ -487,11 +487,13 @@ paths:
       description: |
         Permanently deletes an organization and all its tenant data.
         
-        **⚠️ DESTRUCTIVE OPERATION**: This action cannot be undone. All devices, events, and ingest keys for the organization will be deleted. User associations will be orphaned (users remain but org_id is set to NULL).
+        **⚠️ DESTRUCTIVE OPERATION**: This action cannot be undone. All devices, events, and ingest keys for the organization will be deleted. User associations will be orphaned (users remain but org_id is set to NULL). The organization will also be deleted from Clerk.
         
         **Authentication**: Requires platform admin access.
         
         **Confirmation Required**: This endpoint requires the `X-ADMIN-CONFIRM: DELETE` header to prevent accidental deletions.
+        
+        **Clerk Deletion**: After successfully deleting the organization from the database, the system will attempt to delete the organization from Clerk. If Clerk deletion fails, a warning will be logged but the request will still return success (the organization has already been removed from the database).
       operationId: deleteOrg
       security:
         - BearerAuth: []
