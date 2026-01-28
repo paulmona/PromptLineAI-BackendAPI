@@ -3,6 +3,7 @@ import logger from '../logger.js';
 import { requireClerkAuth, requireOrgAdmin, requireIngestKeyAuth } from '../auth/middleware.js';
 import { getOrgPolicyConfig, updateOrgPolicyConfig } from '../db/queries.js';
 import { policyConfigSchema } from '../validation.js';
+import { createIngestKey } from '../db/ingest-keys.js';
 
 export async function policyRoutes(fastify: FastifyInstance) {
   // GET /config - Get policy configuration for extension (authenticated via X-INGEST-KEY)
@@ -99,6 +100,44 @@ export async function policyRoutes(fastify: FastifyInstance) {
         return updated;
       } catch (err) {
         logger.error({ err }, 'Failed to update policy config');
+        return reply.code(500).send({
+          error: 'Internal server error',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+  );
+
+  // POST /:orgSlug/key-generation - Generate a new ingest key
+  fastify.post<{ Params: { orgSlug: string }; Body: { name?: string } }>(
+    '/:orgSlug/key-generation',
+    { preHandler: [requireClerkAuth, requireOrgAdmin] },
+    async (request: FastifyRequest<{ Params: { orgSlug: string }; Body: { name?: string } }>, reply: FastifyReply) => {
+      try {
+        const ctx = request.authContext;
+        if (!ctx) {
+          return reply.code(401).send({ error: 'Unauthorized' });
+        }
+
+        const { name } = request.body || {};
+
+        // Generate the key (raw key returned only once, never stored)
+        const result = await createIngestKey(ctx.internalOrgId, name);
+
+        logger.info(
+          { orgId: ctx.internalOrgId, keyId: result.id, hasName: !!name },
+          'Ingest key generated'
+        );
+        // NOTE: Never log the raw key value
+
+        return {
+          key: result.key,
+          keyId: result.id,
+          createdAt: result.createdAt.toISOString(),
+          name: name || null,
+        };
+      } catch (err) {
+        logger.error({ err }, 'Failed to generate ingest key');
         return reply.code(500).send({
           error: 'Internal server error',
           message: err instanceof Error ? err.message : 'Unknown error',

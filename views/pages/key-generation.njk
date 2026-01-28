@@ -20,8 +20,87 @@
     <section class="chart-section">
       <h2>Key Generation</h2>
       <p style="color: #555; margin-top: 8px; margin-bottom: 24px; font-size: 0.95rem;">
-        Key Generation UI coming soon.
+        Generate X-INGEST-KEY keys for your organization. These keys are used to authenticate requests from browser extensions.
       </p>
+
+      <!-- Generate Key Section -->
+      <div class="key-generation-form">
+        <div class="form-group">
+          <label for="key-name-input" style="display: block; margin-bottom: 8px; font-weight: 500; color: #333;">
+            Key Name (Optional)
+          </label>
+          <input 
+            type="text" 
+            id="key-name-input" 
+            class="key-name-input" 
+            placeholder="e.g., Production Key, Development Key"
+            maxlength="100"
+          />
+          <p style="color: #666; font-size: 0.85rem; margin-top: 4px; margin-bottom: 16px;">
+            Optional label to help identify this key later.
+          </p>
+        </div>
+        <button id="generate-key-btn" class="generate-key-btn">
+          <span id="generate-btn-text">Generate New Key</span>
+          <span id="generate-btn-spinner" class="spinner hidden"></span>
+        </button>
+      </div>
+
+      <!-- Generated Key Display Section (initially hidden) -->
+      <div id="generated-key-section" class="generated-key-section hidden">
+        <!-- Security Warning Banner -->
+        <div class="key-warning-banner">
+          <div class="warning-icon">⚠️</div>
+          <div class="warning-content">
+            <strong>IMPORTANT: Save this key immediately.</strong>
+            <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+              <li>This key will only be shown once</li>
+              <li>Never share this key with anyone</li>
+              <li>If you lose this key, you'll need to generate a new one and reconfigure all endpoints</li>
+              <li>Store it securely (password manager, secure vault, etc.)</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Key Display Area -->
+        <div class="key-display-container">
+          <div class="key-display-header">
+            <label style="font-weight: 500; color: #333; margin-bottom: 8px; display: block;">
+              Your Ingest Key
+            </label>
+            <div class="key-action-buttons">
+              <button id="toggle-key-visibility-btn" class="key-action-btn" type="button" title="Show/Hide Key">
+                <span id="eye-icon">👁️</span>
+              </button>
+              <button id="copy-key-btn" class="key-action-btn" type="button" title="Copy to Clipboard">
+                <span id="copy-icon">📋</span>
+              </button>
+            </div>
+          </div>
+          <div id="key-display" class="key-display">
+            <span id="key-text">••••••••••••••••••••••••••••••••</span>
+          </div>
+          <div id="copy-success-message" class="copy-success-message hidden">
+            ✓ Key copied to clipboard!
+          </div>
+        </div>
+
+        <!-- Key Metadata -->
+        <div class="key-metadata">
+          <div class="metadata-item">
+            <span class="metadata-label">Key ID:</span>
+            <span id="key-id-value" class="metadata-value">-</span>
+          </div>
+          <div class="metadata-item">
+            <span class="metadata-label">Created:</span>
+            <span id="key-created-value" class="metadata-value">-</span>
+          </div>
+          <div class="metadata-item" id="key-name-metadata" style="display: none;">
+            <span class="metadata-label">Name:</span>
+            <span id="key-name-value" class="metadata-value">-</span>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 

@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { createHmac } from 'crypto';
+import { createHmac, randomBytes } from 'crypto';
 import env from '../env.js';
 import { db } from './index.js';
 import { ingestKeys } from './schema.js';
@@ -26,5 +26,30 @@ export async function resolveOrgIdFromIngestKeyHash(keyHash: string): Promise<{ 
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+export async function createIngestKey(
+  orgId: string,
+  name?: string
+): Promise<{ key: string; id: string; createdAt: Date }> {
+  // Generate 32 bytes, base64url (no padding) - same as script
+  const rawKey = randomBytes(32).toString('base64url');
+  const keyHash = hashIngestKey(rawKey);
+
+  const inserted = await db
+    .insert(ingestKeys)
+    .values({
+      orgId,
+      keyHash,
+      name: name ?? null,
+    })
+    .returning({ id: ingestKeys.id, createdAt: ingestKeys.createdAt });
+
+  // Return raw key ONLY ONCE - never store it
+  return {
+    key: rawKey,
+    id: inserted[0].id,
+    createdAt: inserted[0].createdAt,
+  };
 }
 
