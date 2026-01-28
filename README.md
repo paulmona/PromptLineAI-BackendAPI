@@ -40,6 +40,50 @@ Local-first POC backend for PromptLineAI event ingestion and reporting.
 
 4. Ensure the database schema is deployed (see `schema.sql`).
 
+## Platform Admin
+
+Platform administrators can manage all customer organizations through the `/admin` interface.
+
+### Setup
+
+1. **Create Platform Admin Organization in Clerk**:
+   - Log into your Clerk Dashboard
+   - Create a new organization named "Platform Admin" (or your preferred name)
+   - Note the Organization ID (format: `org_xxxxxxxxxxxxx`)
+
+2. **Configure Environment Variable**:
+   - Add to `.env`:
+     ```
+     PLATFORM_ADMIN_CLERK_ORG_ID=org_xxxxxxxxxxxxx
+     ```
+   - Replace `org_xxxxxxxxxxxxx` with the actual Clerk organization ID
+
+3. **Add Users to Platform Admin Org**:
+   - In Clerk Dashboard, add users to the Platform Admin organization
+   - Only members of this organization can access `/admin` routes
+
+### Accessing Admin Interface
+
+1. Navigate to `http://127.0.0.1:8787/admin`
+2. Sign in with a user account that is a member of the Platform Admin organization
+3. You will see a list of all customer organizations
+
+### Admin Capabilities
+
+- **View Organizations**: List all orgs with device/event/key counts
+- **Revoke Ingest Keys**: Revoke all active ingest keys for an organization
+- **Delete Organization**: Permanently delete an organization and all its data
+
+### ⚠️ Warnings
+
+- **DELETE is Destructive**: Deleting an organization removes ALL data:
+  - All devices
+  - All events
+  - All ingest keys
+  - User associations (users remain but are orphaned)
+- **Confirmation Required**: DELETE requests require `X-ADMIN-CONFIRM: DELETE` header
+- **No Undo**: Deleted organizations cannot be recovered
+
 ## Development
 
 Run in development mode with hot reload:

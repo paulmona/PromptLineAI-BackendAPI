@@ -1,0 +1,126 @@
+{% extends "layouts/base.njk" %}
+
+{% block title %}Platform Admin - PromptLineAI{% endblock %}
+
+{% block pageTitle %}Platform Administration{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div id="auth-banner" class="error-banner hidden">
+    <span id="auth-message">Please sign in to access the platform admin interface.</span>
+    <a id="auth-sign-in-link" class="retry-btn" href="#" style="text-decoration:none;">Sign in</a>
+  </div>
+
+  <div id="error-banner" class="error-banner hidden">
+    <span id="error-message"></span>
+    <button id="retry-btn" class="retry-btn">Retry</button>
+  </div>
+
+  <div id="forbidden-banner" class="error-banner hidden" style="background: #e67e22;">
+    <span>Access denied. This page is only available to platform administrators.</span>
+  </div>
+
+  <div id="admin-content" style="display: none;">
+    <section class="chart-section">
+      <h2>Organizations</h2>
+      <p style="color: #555; margin-top: 8px; margin-bottom: 24px; font-size: 0.95rem;">
+        Manage all customer organizations. Use caution when revoking keys or deleting organizations.
+      </p>
+
+      <!-- Loading state -->
+      <div id="loading-state" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading organizations...</p>
+      </div>
+
+      <!-- Orgs table -->
+      <div id="orgs-table-container" style="display: none;">
+        <table id="orgs-table" style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+          <thead>
+            <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+              <th style="padding: 12px; text-align: left; font-weight: 600;">Name</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600;">Slug</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600;">Created</th>
+              <th style="padding: 12px; text-align: right; font-weight: 600;">Devices</th>
+              <th style="padding: 12px; text-align: right; font-weight: 600;">Events</th>
+              <th style="padding: 12px; text-align: right; font-weight: 600;">Keys</th>
+              <th style="padding: 12px; text-align: center; font-weight: 600;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="orgs-table-body">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div id="pagination-container" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <button id="prev-page-btn" class="key-action-btn" disabled>Previous</button>
+            <span id="pagination-info" style="margin: 0 16px; color: #555;">Page 1 of 1</span>
+            <button id="next-page-btn" class="key-action-btn" disabled>Next</button>
+          </div>
+          <div>
+            <label for="page-size-select" style="margin-right: 8px; color: #555;">Per page:</label>
+            <select id="page-size-select" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px;">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  .admin-table-row {
+    border-bottom: 1px solid #eee;
+  }
+  .admin-table-row:hover {
+    background: #f9f9f9;
+  }
+  .admin-table-cell {
+    padding: 12px;
+  }
+  .admin-actions-cell {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .admin-action-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 0.2s;
+  }
+  .admin-action-btn.revoke {
+    background: #ff9800;
+    color: white;
+  }
+  .admin-action-btn.revoke:hover {
+    background: #f57c00;
+  }
+  .admin-action-btn.delete {
+    background: #f44336;
+    color: white;
+  }
+  .admin-action-btn.delete:hover {
+    background: #d32f2f;
+  }
+  .admin-action-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/env.js"></script>
+<script src="/assets/auth.js"></script>
+<script src="/assets/nav.js"></script>
+<script src="/assets/admin.js"></script>
+{% endblock %}

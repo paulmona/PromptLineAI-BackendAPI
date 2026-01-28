@@ -13,6 +13,7 @@ import { summaryRoutes } from './routes/summary.js';
 import { meRoutes } from './routes/me.js';
 import { devicesRoutes } from './routes/devices.js';
 import { policyRoutes } from './routes/policy.js';
+import { adminRoutes } from './routes/admin.js';
 import { requireClerkAuth, requireOrgAdmin } from './auth/middleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -63,6 +64,9 @@ await fastify.register(summaryRoutes);
 await fastify.register(devicesRoutes);
 await fastify.register(policyRoutes);
 
+// Register admin routes (BEFORE /:orgSlug to avoid route conflicts)
+await fastify.register(adminRoutes);
+
 // Public env (publishable only) for the static frontend
 fastify.get('/env.js', async (_request, reply) => {
   reply.header('content-type', 'application/javascript; charset=utf-8');
@@ -111,9 +115,26 @@ fastify.get('/', async (_request, reply: FastifyReply) => {
   }));
 });
 
+// Admin UI page (must be before /admin/policy-access to avoid conflicts)
+fastify.get('/admin', async (_request, reply: FastifyReply) => {
+  return (reply as any).view('pages/admin.njk', getTemplateContext({
+    showUserControls: false,
+    orgSlug: null,
+  }));
+});
+
 // Admin-only API endpoint to check policy access
 fastify.get('/admin/policy-access', { preHandler: [requireClerkAuth, requireOrgAdmin] }, async (_request, reply) => {
   return { allowed: true };
+});
+
+// Platform Admin UI page (must be before /:orgSlug to avoid route conflicts)
+fastify.get('/platform-admin', async (_request, reply: FastifyReply) => {
+  return (reply as any).view('pages/admin.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug: 'platform-admin',
+    isPlatformAdmin: true,
+  }));
 });
 
 // Policy page route (must be before /:orgSlug/devices)

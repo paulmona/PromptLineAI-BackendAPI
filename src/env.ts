@@ -21,6 +21,9 @@ const envSchema = z.object({
   // Ingest key hashing pepper (HMAC). Treat as immutable for the POC.
   INGEST_KEY_PEPPER: z.string().min(32, 'INGEST_KEY_PEPPER must be at least 32 characters'),
 
+  // Platform Admin (Clerk org ID for platform administrators)
+  PLATFORM_ADMIN_CLERK_ORG_ID: z.string().min(1, 'PLATFORM_ADMIN_CLERK_ORG_ID is required'),
+
   DB_HOST: z.string().default('192.168.0.71'),
   DB_PORT: z.coerce.number().default(5432),
   DB_NAME: z.string().default('aicompliance'),

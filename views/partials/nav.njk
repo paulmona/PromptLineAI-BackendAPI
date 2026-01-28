@@ -1,6 +1,12 @@
 <nav id="main-nav" class="main-nav">
   <ul class="nav-links">
-    {% if orgSlug %}
+    {% if isPlatformAdmin %}
+    {# Platform Admin: Show only Logout #}
+    {% if showUserControls %}
+    <li><a href="#" id="nav-logout-link" class="nav-logout-link">Logout</a></li>
+    {% endif %}
+    {% elif orgSlug %}
+    {# Regular org pages: Show full menu #}
     <li><a href="/{{ orgSlug }}">Dashboard</a></li>
     <li><a href="/{{ orgSlug }}/devices">Devices</a></li>
     {% if showUserControls %}
