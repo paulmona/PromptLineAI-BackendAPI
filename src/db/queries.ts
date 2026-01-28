@@ -1,9 +1,10 @@
-import { eq, sql, and, gte, desc, isNotNull, isNull, count } from 'drizzle-orm';
+import { eq, sql, and, gte, desc, isNotNull, isNull, count, ne } from 'drizzle-orm';
 import { db } from './index.js';
 import { orgs, users, devices, events, ingestKeys } from './schema.js';
 import logger from '../logger.js';
 import type { EventInput } from '../validation.js';
 import { randomUUID } from 'crypto';
+import env from '../env.js';
 
 /**
  * Lookup or create org by name (exact match).
@@ -455,13 +456,17 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
 export async function getOrgsList(args: { limit: number; offset: number }) {
   const { limit, offset } = args;
 
-  // Get total count
+  // Exclude Platform Admin org from queries
+  const excludePlatformAdmin = ne(orgs.externalOrgId, env.PLATFORM_ADMIN_CLERK_ORG_ID);
+
+  // Get total count (excluding Platform Admin)
   const totalResult = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(orgs);
+    .from(orgs)
+    .where(excludePlatformAdmin);
   const total = totalResult[0]?.count ?? 0;
 
-  // Get orgs with counts using subqueries
+  // Get orgs with counts (excluding Platform Admin)
   const orgsList = await db
     .select({
       id: orgs.id,
@@ -471,6 +476,7 @@ export async function getOrgsList(args: { limit: number; offset: number }) {
       createdAt: orgs.createdAt,
     })
     .from(orgs)
+    .where(excludePlatformAdmin)
     .orderBy(desc(orgs.createdAt))
     .limit(limit)
     .offset(offset);

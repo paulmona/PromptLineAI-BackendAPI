@@ -129,8 +129,9 @@ fastify.get('/admin/policy-access', { preHandler: [requireClerkAuth, requireOrgA
 // Platform Admin UI page (must be before /:orgSlug to avoid route conflicts)
 fastify.get('/platform-admin', async (_request, reply: FastifyReply) => {
   return (reply as any).view('pages/admin.njk', getTemplateContext({
-    showUserControls: false,
-    orgSlug: null,
+    showUserControls: true,
+    orgSlug: 'platform-admin',
+    isPlatformAdmin: true,
   }));
 });
 
