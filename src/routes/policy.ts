@@ -1,23 +1,26 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import logger from '../logger.js';
-import { requireClerkAuth, requireOrgAdmin, requireIngestKeyAuth } from '../auth/middleware.js';
+import { requireClerkAuth, requireOrgAdmin } from '../auth/middleware.js';
 import { getOrgPolicyConfig, updateOrgPolicyConfig } from '../db/queries.js';
 import { policyConfigSchema } from '../validation.js';
 import { createIngestKey } from '../db/ingest-keys.js';
 
 export async function policyRoutes(fastify: FastifyInstance) {
-  // GET /config - Get policy configuration for extension (authenticated via X-INGEST-KEY)
+  // GET /config - Get policy configuration for extension (authenticated via Clerk Bearer token)
   fastify.get(
     '/config',
-    { preHandler: [requireIngestKeyAuth] },
+    { preHandler: [requireClerkAuth] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ingestAuth = request.ingestAuth;
-        if (!ingestAuth?.orgId) {
-          return reply.code(401).send({ error: 'Unauthorized' });
+        const authContext = request.authContext;
+        if (!authContext) {
+          return reply.code(401).send({
+            error: 'Unauthorized',
+            code: 'ORG_REQUIRED',
+          });
         }
 
-        const config = await getOrgPolicyConfig(ingestAuth.orgId);
+        const config = await getOrgPolicyConfig(authContext.internalOrgId);
 
         // Return defaults if config doesn't exist (new orgs)
         if (!config) {

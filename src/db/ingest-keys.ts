@@ -4,6 +4,10 @@ import env from '../env.js';
 import { db } from './index.js';
 import { ingestKeys } from './schema.js';
 
+/**
+ * Hash an ingest key using HMAC-SHA256 with server-side pepper.
+ * Used for admin key generation (createIngestKey).
+ */
 export function hashIngestKey(rawKey: string): string {
   // Fail fast if env misconfigured (prevents silent 401s that are hard to debug)
   if (!env.INGEST_KEY_PEPPER) {
@@ -13,11 +17,19 @@ export function hashIngestKey(rawKey: string): string {
   return createHmac('sha256', env.INGEST_KEY_PEPPER).update(rawKey).digest('hex');
 }
 
+/**
+ * @deprecated No longer used for extension authentication. Extension now uses Clerk Bearer tokens.
+ * This function is kept for potential future use or admin purposes.
+ */
 export async function resolveOrgIdFromIngestKey(rawKey: string): Promise<{ orgId: string; keyId: string } | null> {
   const keyHash = hashIngestKey(rawKey);
   return resolveOrgIdFromIngestKeyHash(keyHash);
 }
 
+/**
+ * @deprecated No longer used for extension authentication. Extension now uses Clerk Bearer tokens.
+ * This function is kept for potential future use or admin purposes.
+ */
 export async function resolveOrgIdFromIngestKeyHash(keyHash: string): Promise<{ orgId: string; keyId: string } | null> {
   const rows = await db
     .select({ orgId: ingestKeys.orgId, keyId: ingestKeys.id })

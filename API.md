@@ -240,7 +240,7 @@ The following example shows a typical batch of events that the extension might s
 - **URL**: Configurable via `BACKEND_URL` (default: `http://127.0.0.1:8787/ingest`)
 - **Headers**: 
   - `Content-Type: application/json` (always sent)
-  - `X-INGEST-KEY: <org-ingest-key>` (required)
+  - `Authorization: Bearer <clerk-session-token>` (required)
 - **Body**: JSON stringified payload containing `device_id` and `events` array
 - **Timeout**: 5 seconds (request is aborted if not completed within this time)
 
@@ -252,11 +252,15 @@ The following example shows a typical batch of events that the extension might s
 - Successfully sent events are removed from the queue
 
 **Error (non-2xx status codes or timeout)**:
-- Extension does not parse error response body
+- Extension parses error response body for machine-readable error codes
+- Error responses include a `code` field (e.g., `ORG_REQUIRED`, `DEVICE_ORG_MISMATCH`, `LICENSE_REQUIRED`, `MEMBERSHIP_REQUIRED`)
 - Failed events remain in the queue
 - Events will be retried on the next flush interval (every 10 seconds)
 - No exponential backoff - retries occur at regular intervals
 - No maximum retry limit - events will continue to be retried until successful
+- **401 Unauthorized**: Invalid or missing Bearer token, or session expired
+- **403 Forbidden**: User lacks required organization membership (code: `ORG_REQUIRED`)
+- **409 Conflict**: Device belongs to different organization (code: `DEVICE_ORG_MISMATCH`)
 
 ### DRY_RUN Mode
 
@@ -302,22 +306,28 @@ To receive events from this extension, implement a REST API endpoint that:
 
 1. **Accepts POST requests** to the URL configured in `BACKEND_URL` (default: `/ingest`)
 2. **Expects JSON payload** with the structure described in the "Event Data Format" section above
-3. **Returns 2xx status code** on success (extension treats any 2xx as success)
-4. **Returns non-2xx status code** on error (extension will retry on next flush interval)
-5. **Validates** the `X-INGEST-KEY` header (org-scoped ingest key)
+3. **Validates** the `Authorization: Bearer <token>` header (Clerk session token)
+4. **Returns 2xx status code** on success (extension treats any 2xx as success)
+5. **Returns non-2xx status code** on error with machine-readable error codes (extension will retry on next flush interval)
 
 ### Expected Request Format
 
 - **Method**: `POST`
 - **Content-Type**: `application/json`
-- **Required Header**: `X-INGEST-KEY`
+- **Required Header**: `Authorization: Bearer <clerk-session-token>`
 - **Body**: JSON object with `device_id` (UUID string), `device_name` (string, 1-64 characters), and `events` (array of 1-50 event objects)
 
 ### Expected Response
 
 - **Success**: Return any `2xx` status code (e.g., `200 OK` or `201 Created`)
-- **Error**: Return any non-`2xx` status code (e.g., `400`, `401`, `500`)
-- **Body**: Extension does not parse response body, so any format is acceptable
+- **Error**: Return appropriate status code with error object containing `code` field:
+  - `401 Unauthorized`: Invalid or missing Bearer token
+  - `403 Forbidden`: User lacks organization membership (code: `ORG_REQUIRED`)
+  - `409 Conflict`: Device belongs to different organization (code: `DEVICE_ORG_MISMATCH`)
+  - `429 Too Many Requests`: Rate limit exceeded
+  - `400 Bad Request`: Invalid request body
+  - `500 Internal Server Error`: Server error
+- **Error Response Format**: `{ "error": "Human-readable message", "code": "MACHINE_READABLE_CODE", "message": "Optional details" }`
 
 ### Notes for Backend Implementation
 
@@ -328,6 +338,6 @@ To receive events from this extension, implement a REST API endpoint that:
 - All UUIDs follow standard UUID v4 format
 - Nullable fields may be `null` or omitted entirely
 - The extension should treat event IDs as globally unique (UUID v4). Backend idempotency uses `events.id` as a global primary key.
-- If the same device UUID is ever used with a different org ingest key, backend returns `409 Conflict` (device org mismatch guard).
+- If the same device UUID is ever used with a different organization (via different Clerk Bearer token), backend returns `409 Conflict` with code `DEVICE_ORG_MISMATCH` (device org mismatch guard).
 
 For detailed validation requirements and error handling recommendations, see the backend implementation guide (separate document).

@@ -1,0 +1,85 @@
+{% extends "layouts/base.njk" %}
+
+{% block title %}Extension Authentication - PromptLineAI{% endblock %}
+
+{% block content %}
+<div class="login-container">
+  <div class="login-card">
+    <h2 style="margin-bottom: 20px; text-align: center;">Sign in for Extension</h2>
+    <p style="text-align: center; color: #666; margin-bottom: 24px;">
+      Sign in to sync your authentication with the Chrome extension.
+    </p>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    <div id="error" class="error" style="display: none;"></div>
+    
+    <div id="sign-in-container"></div>
+    
+    <div id="success-message" style="display: none; margin-top: 20px; padding: 16px; background: #e8f5e9; color: #2e7d32; border-radius: 4px; text-align: center;">
+      <strong>✓ Successfully signed in!</strong>
+      <p style="margin: 8px 0 0 0; font-size: 14px;">Your authentication has been synced with the extension. You can close this page.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/env.js"></script>
+<script src="/assets/auth.js"></script>
+<script>
+  (async () => {
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const signInContainer = document.getElementById('sign-in-container');
+    const successMessage = document.getElementById('success-message');
+    
+    try {
+      if (!window.PromptLineAuth || !window.PromptLineAuth.initClerk) {
+        errorEl.textContent = 'Authentication not available. Please refresh the page.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      await window.PromptLineAuth.initClerk();
+      
+      // Check if user is already signed in
+      if (!window.Clerk || !window.Clerk.loaded) {
+        errorEl.textContent = 'Clerk not loaded. Please refresh the page.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const session = await window.Clerk.session;
+      if (session) {
+        // User is already signed in - show success message
+        successMessage.style.display = 'block';
+        signInContainer.style.display = 'none';
+        return;
+      }
+      
+      // User is not signed in - mount sign-in component
+      statusEl.textContent = '';
+      statusEl.style.display = 'none';
+      
+      // Mount sign-in component with callback to show success
+      window.PromptLineAuth.mountSignIn(signInContainer, {
+        fallbackRedirectUrl: window.location.origin + '/sync-host',
+        afterSignInUrl: window.location.origin + '/sync-host',
+      });
+      
+      // Listen for sign-in success
+      window.Clerk.addListener((event) => {
+        if (event.type === 'session.created' || event.type === 'session.updated') {
+          successMessage.style.display = 'block';
+          signInContainer.style.display = 'none';
+        }
+      });
+      
+    } catch (e) {
+      console.error('Sync host page error:', e);
+      errorEl.textContent = 'Unable to initialize sign-in. Please refresh the page.';
+      errorEl.style.display = 'block';
+    }
+  })();
+</script>
+{% endblock %}

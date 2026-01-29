@@ -132,6 +132,15 @@ fastify.get('/login', async (_request, reply: FastifyReply) => {
   }));
 });
 
+// Sync host page for Chrome extension authentication (must be before /:orgSlug to avoid route conflicts)
+fastify.get('/sync-host', async (request, reply: FastifyReply) => {
+  return (reply as any).view('pages/sync-host.njk', getTemplateContext({
+    showUserControls: false,
+    orgSlug: null,
+    isPublic: true,
+  }));
+});
+
 // Admin UI page (must be before /admin/policy-access to avoid conflicts)
 fastify.get('/admin', async (_request, reply: FastifyReply) => {
   return (reply as any).view('pages/admin.njk', getTemplateContext({

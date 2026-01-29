@@ -18,7 +18,8 @@ const envSchema = z.object({
   // Optional: override where Clerk.js is loaded from (for restricted DNS environments)
   CLERK_JS_URL: z.string().url().optional(),
 
-  // Ingest key hashing pepper (HMAC). Treat as immutable for the POC.
+  // Ingest key hashing pepper (HMAC) for admin key generation only.
+  // Note: Extension authentication now uses Clerk Bearer tokens, but ingest keys may still be generated for admin purposes.
   INGEST_KEY_PEPPER: z.string().min(32, 'INGEST_KEY_PEPPER must be at least 32 characters'),
 
   // Platform Admin (Clerk org ID for platform administrators)

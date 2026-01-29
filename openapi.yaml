@@ -9,8 +9,8 @@ info:
     
     **Authentication**:
     - `/healthz` is public.
-    - `/ingest` requires `X-INGEST-KEY` (org-scoped ingest key).
-    - `/me` and `/summary` require `Authorization: Bearer <Clerk session token>` (dashboard only).
+    - `/ingest` and `/config` require `Authorization: Bearer <Clerk session token>` (extension endpoints).
+    - `/me` and `/summary` require `Authorization: Bearer <Clerk session token>` (dashboard endpoints).
   version: 0.1.0
   contact:
     name: PromptLineAI
@@ -98,12 +98,12 @@ paths:
         Ingests events from the Chrome extension. Events are processed idempotently -
         re-sending the same event UUID will not create duplicate rows.
         
-        **Authentication**: Requires `X-INGEST-KEY` header.
+        **Authentication**: Requires `Authorization: Bearer <Clerk session token>` header.
 
         **Tenant Isolation**:
-        - The `org_id` for all writes is derived EXCLUSIVELY from `X-INGEST-KEY` (hashed server-side and mapped to a single org).
+        - The `org_id` for all writes is derived EXCLUSIVELY from the Clerk Bearer token (organization membership).
         - Client-supplied org/user identifiers are rejected if present in the event payload.
-        - Devices have a global UUID primary key; if a device UUID already exists under a different org, the request is rejected with 409 Conflict.
+        - Devices have a global UUID primary key; if a device UUID already exists under a different org, the request is rejected with 409 Conflict (code: `DEVICE_ORG_MISMATCH`).
 
         **User Attribution**:
         - Not implemented in this milestone. `events.user_id` and `devices.user_id` remain NULL.
@@ -115,7 +115,7 @@ paths:
         - Unknown event fields are stored in `events.extra` JSONB column
       operationId: ingest
       security:
-        - ApiKeyAuth: []
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -171,13 +171,23 @@ paths:
                     _errors:
                       - 'Array must contain at most 50 element(s)'
         '401':
-          description: Missing, invalid, or revoked ingest key
+          description: Missing or invalid Clerk Bearer token
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
-                error: 'Invalid ingest key'
+                error: 'Unauthorized'
+                code: 'ORG_REQUIRED'
+        '403':
+          description: Valid token but user lacks organization membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Organization membership required'
+                code: 'ORG_REQUIRED'
         '409':
           description: Device belongs to a different organization
           content:
@@ -186,6 +196,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: 'Device belongs to different organization'
+                code: 'DEVICE_ORG_MISMATCH'
                 message: 'This device is already associated with another organization'
         '413':
           description: Payload too large
@@ -316,20 +327,19 @@ paths:
         - Configuration
       summary: Get policy configuration for extension
       description: |
-        Returns the policy configuration for the organization associated with the ingest key.
+        Returns the policy configuration for the organization associated with the authenticated user.
         
-        **Authentication**: Requires `X-INGEST-KEY` header (same as `/ingest`).
+        **Authentication**: Requires `Authorization: Bearer <Clerk session token>` header (same as `/ingest`).
         
         **Tenant Isolation**:
-        - Organization is derived EXCLUSIVELY from the `X-INGEST-KEY` header.
-        - The ingest key is hashed server-side and mapped to a single organization.
-        - Returns configuration for that organization only.
+        - Organization is derived EXCLUSIVELY from the Clerk Bearer token (organization membership).
+        - Returns configuration for the authenticated user's organization only.
         
         **Default Values**:
         - If no configuration exists for the organization, returns default values (all features enabled).
       operationId: getConfig
       security:
-        - ApiKeyAuth: []
+        - BearerAuth: []
       responses:
         '200':
           description: Policy configuration
@@ -344,13 +354,23 @@ paths:
                 fileUpload:
                   logFileNames: true
         '401':
-          description: Missing, invalid, or revoked ingest key
+          description: Missing or invalid Clerk Bearer token
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
-                error: 'Invalid ingest key'
+                error: 'Unauthorized'
+                code: 'ORG_REQUIRED'
+        '403':
+          description: Valid token but user lacks organization membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: 'Organization membership required'
+                code: 'ORG_REQUIRED'
         '500':
           description: Internal server error
           content:
@@ -610,12 +630,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Clerk session token (dashboard endpoints)
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-INGEST-KEY
-      description: Org-scoped ingest key for /ingest (raw key is never stored; server hashes with HMAC + pepper)
+      description: Clerk session token (required for all authenticated endpoints including /ingest and /config)
 
   schemas:
     MeResponse:
@@ -866,8 +881,12 @@ components:
       properties:
         error:
           type: string
-          description: Error message
+          description: Human-readable error message
           example: 'Invalid request body'
+        code:
+          type: string
+          description: Machine-readable error code (e.g., ORG_REQUIRED, DEVICE_ORG_MISMATCH, LICENSE_REQUIRED, MEMBERSHIP_REQUIRED)
+          example: 'ORG_REQUIRED'
         message:
           type: string
           description: Detailed error message (for 500 errors)

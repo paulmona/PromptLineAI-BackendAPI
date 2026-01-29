@@ -1,11 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import logger from '../logger.js';
 import { ingestRequestSchema, separateEventFields } from '../validation.js';
 import { db } from '../db/index.js';
 import { upsertDeviceReturningOrgId, insertEvents } from '../db/queries.js';
-import { getSingleHeaderValue } from '../auth/headers.js';
-import { hashIngestKey, resolveOrgIdFromIngestKeyHash } from '../db/ingest-keys.js';
-import { checkRateLimitPerKey } from '../auth/ingest-rate-limit.js';
+import { requireClerkAuth } from '../auth/middleware.js';
+import { checkRateLimit } from '../auth/ingest-rate-limit.js';
 
 class DeviceOrgMismatchError extends Error {
   constructor(
@@ -18,7 +17,7 @@ class DeviceOrgMismatchError extends Error {
 }
 
 export async function ingestRoutes(fastify: FastifyInstance) {
-  fastify.post('/ingest', async (request, reply) => {
+  fastify.post('/ingest', { preHandler: [requireClerkAuth] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const clientIp = request.ip || request.headers['x-forwarded-for'] || 'unknown';
 
@@ -34,30 +33,24 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       'Incoming ingest request'
     );
 
-    // Ingest auth: X-INGEST-KEY (single value, trimmed). Never log it.
-    const ingestKeyHeader = getSingleHeaderValue(request.headers['x-ingest-key'] as string | string[] | undefined);
-    if (!ingestKeyHeader.ok) {
-      // Only missing header gets a specific message; invalid/revoked stays generic (avoid leaking state).
-      const msg = ingestKeyHeader.reason === 'missing' ? 'Missing X-INGEST-KEY' : 'Invalid ingest key';
-      return reply.code(401).send({ error: msg });
+    // Get org ID from Clerk authentication context
+    const authContext = request.authContext;
+    if (!authContext) {
+      return reply.code(401).send({
+        error: 'Unauthorized',
+        code: 'ORG_REQUIRED',
+      });
     }
 
-    const ingestKey = ingestKeyHeader.value;
-    const ingestKeyHash = hashIngestKey(ingestKey);
+    const resolvedOrgId = authContext.internalOrgId;
 
-    // Basic in-memory rate limiting per key hash
-    const rl = checkRateLimitPerKey({ keyHash: ingestKeyHash, windowMs: 60_000, maxRequests: 60 });
+    // Rate limiting per org
+    const rateLimitKey = `org:${resolvedOrgId}`;
+    const rl = checkRateLimit({ identifier: rateLimitKey, windowMs: 60_000, maxRequests: 60 });
     if (!rl.allowed) {
       reply.header('Retry-After', String(rl.retryAfterSeconds));
       return reply.code(429).send({ error: 'Too Many Requests' });
     }
-
-    const resolved = await resolveOrgIdFromIngestKeyHash(ingestKeyHash);
-    if (!resolved) {
-      return reply.code(401).send({ error: 'Invalid ingest key' });
-    }
-
-    const resolvedOrgId = resolved.orgId;
 
     // Validate request body
     const validationResult = ingestRequestSchema.safeParse(request.body);
@@ -104,7 +97,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
           throw new DeviceOrgMismatchError(device_id, resolvedOrgId, deviceRow.orgId);
         }
 
-        // Prepare events for insertion (tenant derived exclusively from ingest key)
+        // Prepare events for insertion (tenant derived from Clerk auth context)
         const eventData = events.map((event) => {
           const { known, extra } = separateEventFields(event);
 
@@ -154,6 +147,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
         );
         return reply.code(409).send({
           error: 'Device belongs to different organization',
+          code: 'DEVICE_ORG_MISMATCH',
           message: 'This device is already associated with another organization',
         });
       }

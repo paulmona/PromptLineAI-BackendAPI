@@ -2,7 +2,6 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { clerkClient, verifyClerkBearerToken } from './clerk.js';
 import { getSingleHeaderValue } from './headers.js';
 import { ensureOrgByExternalOrgId, ensureUserByExternalUid } from '../db/queries.js';
-import { hashIngestKey, resolveOrgIdFromIngestKeyHash } from '../db/ingest-keys.js';
 import logger from '../logger.js';
 import env from '../env.js';
 
@@ -15,9 +14,6 @@ declare module 'fastify' {
       orgSlug: string;
       internalUserId: string;
       role: 'admin' | 'member';
-    };
-    ingestAuth?: {
-      orgId: string;
     };
   }
 }
@@ -60,8 +56,11 @@ async function resolveClerkOrgId(args: { clerkUserId: string; tokenOrgId: string
     'Resolved organization IDs from memberships'
   );
 
-  if (unique.length !== 1) {
-    throw new Error(`User must be assigned to exactly one organization, found ${unique.length}`);
+  if (unique.length === 0) {
+    throw new Error('ORG_REQUIRED: User must be assigned to exactly one organization, found 0');
+  }
+  if (unique.length > 1) {
+    throw new Error('ORG_REQUIRED: User must be assigned to exactly one organization, found multiple');
   }
 
   logger.debug({ clerkUserId: args.clerkUserId, resolvedOrgId: unique[0] }, 'Resolved organization ID from Clerk API');
@@ -109,15 +108,15 @@ async function deriveUserRole(args: { clerkUserId: string; clerkOrgId: string })
 export async function requireClerkAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const authHeader = getSingleHeaderValue(request.headers.authorization);
   if (!authHeader.ok) {
-    return void reply.code(401).send({ error: 'Unauthorized' });
+    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
   }
   if (!authHeader.value.toLowerCase().startsWith('bearer ')) {
-    return void reply.code(401).send({ error: 'Unauthorized' });
+    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
   }
 
   const token = authHeader.value.slice('bearer '.length).trim();
   if (!token) {
-    return void reply.code(401).send({ error: 'Unauthorized' });
+    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
   }
 
   // Log token prefix for debugging (first 20 chars only)
@@ -142,7 +141,7 @@ export async function requireClerkAuth(request: FastifyRequest, reply: FastifyRe
     const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
     if (!org?.name || !org?.slug) {
       logger.warn({ clerkOrgId }, 'Organization metadata missing in Clerk');
-      return void reply.code(403).send({ error: 'Organization metadata missing in Clerk' });
+      return void reply.code(403).send({ error: 'Organization metadata missing in Clerk', code: 'ORG_REQUIRED' });
     }
 
     const ensuredOrg = await ensureOrgByExternalOrgId({
@@ -181,20 +180,25 @@ export async function requireClerkAuth(request: FastifyRequest, reply: FastifyRe
 
     // Differentiate auth vs authorization:
     // - Invalid token => 401
-    // - Valid token but no org/invalid org context => 403
-    // We can't reliably distinguish all cases here without Clerk error typing, so:
-    // - Missing org membership / multiple orgs => 403
-    // - Token verification errors => 401
-    // - Organization-related errors => 403
+    // - Valid token but no org/invalid org context => 403 with error codes
     const message = err instanceof Error ? err.message : String(err);
-    if (
-      message.includes('assigned to exactly one organization') ||
-      message.includes('Organization metadata') ||
-      message.includes('org')
-    ) {
-      return void reply.code(403).send({ error: message });
+    
+    // Check for specific error codes in the message
+    if (message.includes('ORG_REQUIRED')) {
+      return void reply.code(403).send({ error: 'Organization membership required', code: 'ORG_REQUIRED' });
     }
-    return void reply.code(401).send({ error: 'Unauthorized' });
+    if (message.includes('assigned to exactly one organization')) {
+      return void reply.code(403).send({ error: message, code: 'ORG_REQUIRED' });
+    }
+    if (message.includes('Organization metadata')) {
+      return void reply.code(403).send({ error: message, code: 'ORG_REQUIRED' });
+    }
+    if (message.includes('org')) {
+      return void reply.code(403).send({ error: message, code: 'ORG_REQUIRED' });
+    }
+    
+    // Token verification errors => 401
+    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
   }
 }
 
@@ -208,28 +212,6 @@ export async function requireOrgAdmin(request: FastifyRequest, reply: FastifyRep
     logger.debug({ clerkUserId: ctx.clerkUserId, role: ctx.role }, 'Access denied: admin role required');
     return void reply.code(403).send({ error: 'Forbidden: admin access required' });
   }
-}
-
-export async function requireIngestKeyAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const ingestKeyHeader = getSingleHeaderValue(
-    request.headers['x-ingest-key'] as string | string[] | undefined
-  );
-
-  if (!ingestKeyHeader.ok) {
-    const msg = ingestKeyHeader.reason === 'missing' ? 'Missing X-INGEST-KEY' : 'Invalid ingest key';
-    return void reply.code(401).send({ error: msg });
-  }
-
-  const ingestKey = ingestKeyHeader.value;
-  const ingestKeyHash = hashIngestKey(ingestKey);
-
-  const resolved = await resolveOrgIdFromIngestKeyHash(ingestKeyHash);
-  if (!resolved) {
-    return void reply.code(401).send({ error: 'Invalid ingest key' });
-  }
-
-  // Attach orgId to request for use in route handler
-  request.ingestAuth = { orgId: resolved.orgId };
 }
 
 export async function requirePlatformAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
