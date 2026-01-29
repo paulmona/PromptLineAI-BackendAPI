@@ -1352,6 +1352,11 @@ table tbody tr:hover {
   .public-nav-mobile {
     display: none;
   }
+
+  /* Hide public hamburger button on desktop - desktop nav is always visible */
+  #public-hamburger-btn {
+    display: none;
+  }
 }
 
 /* Login Page Styles */
