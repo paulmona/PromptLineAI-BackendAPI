@@ -7,13 +7,36 @@
         <span></span>
         <span></span>
       </button>
+      {% else %}
+      {# Public pages: Show hamburger for mobile #}
+      <button id="public-hamburger-btn" class="hamburger-btn" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       {% endif %}
+      {% if orgSlug %}
       <h1 class="header-brand">{% block pageTitle %}PromptLineAI{% endblock %}</h1>
+      {% else %}
+      <h1 class="header-brand"><a href="/" style="text-decoration: none; color: inherit;">{% block pageTitlePublic %}PromptLineAI{% endblock %}</a></h1>
+      {% endif %}
     </div>
     <div class="header-right">
-      {% block headerRight %}{% endblock %}
-      {% if showUserControls %}
-      <span id="org-pill" style="font-size:12px; color:#555;"></span>
+      {% if orgSlug %}
+        {# Authenticated: Show existing controls #}
+        {% block headerRight %}{% endblock %}
+        {% if showUserControls %}
+        <span id="org-pill" style="font-size:12px; color:#555;"></span>
+        {% endif %}
+      {% else %}
+        {# Public: Show public navigation #}
+        <nav class="public-nav">
+          <ul class="public-nav-links">
+            <li><a href="#product">Product</a></li>
+            <li><a href="/pricing">Pricing</a></li>
+            <li><a href="{{ CLERK_SIGN_IN_URL if CLERK_SIGN_IN_URL else '#' }}" class="btn-login">Login</a></li>
+          </ul>
+        </nav>
       {% endif %}
     </div>
   </div>
@@ -21,6 +44,17 @@
   {% if orgSlug %}
   <div class="header-nav-wrapper">
     {% include "partials/nav.njk" %}
+  </div>
+  {% else %}
+  {# Public pages: Mobile navigation menu #}
+  <div id="public-nav-wrapper" class="header-nav-wrapper">
+    <nav class="public-nav-mobile">
+      <ul class="public-nav-links-mobile">
+        <li><a href="#product">Product</a></li>
+        <li><a href="/pricing">Pricing</a></li>
+        <li><a href="{{ CLERK_SIGN_IN_URL if CLERK_SIGN_IN_URL else '#' }}" class="btn-login">Login</a></li>
+      </ul>
+    </nav>
   </div>
   {% endif %}
   

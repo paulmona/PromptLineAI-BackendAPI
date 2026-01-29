@@ -103,6 +103,7 @@ fastify.get('/dashboard.css', async (_request, reply) => reply.redirect(302, '/a
 const getTemplateContext = (overrides: Record<string, any> = {}) => {
   return {
     currentYear: new Date().getFullYear(),
+    CLERK_SIGN_IN_URL: env.CLERK_SIGN_IN_URL ?? null,
     ...overrides,
   };
 };
@@ -110,6 +111,14 @@ const getTemplateContext = (overrides: Record<string, any> = {}) => {
 // Landing page
 fastify.get('/', async (_request, reply: FastifyReply) => {
   return (reply as any).view('pages/landing.njk', getTemplateContext({
+    showUserControls: false,
+    orgSlug: null,
+  }));
+});
+
+// Pricing page (must be before /:orgSlug to avoid route conflicts)
+fastify.get('/pricing', async (_request, reply: FastifyReply) => {
+  return (reply as any).view('pages/pricing.njk', getTemplateContext({
     showUserControls: false,
     orgSlug: null,
   }));

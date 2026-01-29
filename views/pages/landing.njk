@@ -1,133 +1,79 @@
 {% extends "layouts/base.njk" %}
 
-{% block title %}PromptLineAI{% endblock %}
-
-{% block stylesheets %}
-{{ super() }}
-<style>
-  .landing { max-width: 720px; margin: 64px auto; padding: 0 16px; }
-  .landing h1 { margin-bottom: 8px; }
-  .landing p { color: #555; }
-  .landing .actions { margin-top: 24px; display: flex; gap: 12px; }
-  .btn { appearance: none; border: 1px solid #ddd; background: #111; color: #fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; text-decoration: none; font-weight: 600; }
-  .btn.secondary { background: #fff; color: #111; }
-  .status { margin-top: 16px; color: #555; }
-  .error { margin-top: 16px; color: #b42318; }
-  .auth-container { margin-top: 24px; }
-  .auth-container.hidden { display: none; }
-</style>
-{% endblock %}
+{% block title %}PromptLineAI - AI Compliance Made Simple{% endblock %}
 
 {% block content %}
-<div class="landing">
-  <h1>PromptLineAI</h1>
-  <p>Sign in to view your organization dashboard.</p>
-
-  <div id="status" class="status">Checking session…</div>
-  <div id="error" class="error" style="display:none;"></div>
-
-  <!-- Embedded Clerk components (shown when signed out) -->
-  <div id="auth-container" class="auth-container hidden">
-    <div id="sign-in-container"></div>
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container">
+    <h1 class="hero-title">AI Compliance Made Simple</h1>
+    <p class="hero-subtitle">Monitor, track, and ensure compliance across all your AI tool usage. Get complete visibility into ChatGPT, Google Gemini, and other LLM interactions.</p>
+    <div class="hero-actions">
+      <a href="/pricing" class="btn btn-primary">Get Started</a>
+      <a href="/pricing" class="btn btn-secondary">View Pricing</a>
+    </div>
   </div>
-</div>
+</section>
+
+<!-- Features Section -->
+<section class="features" id="product">
+  <div class="container">
+    <h2 class="section-title">Why PromptLineAI?</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Complete Visibility</h3>
+        <p>Track every AI interaction across your organization. See which tools are being used, when, and by whom.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Compliance Monitoring</h3>
+        <p>Ensure your organization meets AI compliance requirements. Monitor file uploads and sensitive data handling.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Real-time Analytics</h3>
+        <p>Get insights into AI usage patterns with comprehensive dashboards and reporting tools.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚙️</div>
+        <h3>Easy Integration</h3>
+        <p>Simple Chrome extension installation. No complex setup required. Start monitoring in minutes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section">
+  <div class="container">
+    <h2>Ready to get started?</h2>
+    <p>Choose a plan that fits your organization's needs.</p>
+    <a href="/pricing" class="btn btn-primary">View Pricing</a>
+  </div>
+</section>
 {% endblock %}
 
 {% block scripts %}
-<script src="/env.js"></script>
-<script src="/assets/auth.js"></script>
 <script>
-  (async () => {
-    const statusEl = document.getElementById('status');
-    const errorEl = document.getElementById('error');
-    const authContainer = document.getElementById('auth-container');
-    const signInContainer = document.getElementById('sign-in-container');
-
-    // Prevent redirect loops: check if we've been redirected too many times
-    const redirectCount = sessionStorage.getItem('authRedirectCount') || '0';
-    const redirectCountNum = parseInt(redirectCount, 10);
-    if (redirectCountNum >= 3) {
-      // Too many redirects - clear counter and show error
-      sessionStorage.removeItem('authRedirectCount');
-      statusEl.textContent = 'Authentication error: Too many redirects. Please try signing out and signing in again.';
-      errorEl.style.display = 'block';
-      errorEl.textContent = 'There appears to be an authentication issue. Please sign out and try again.';
-      return;
-    }
-
-    try {
-      await window.PromptLineAuth.initClerk();
-      
-      // Check if user is already signed in
-      const token = await window.PromptLineAuth.getToken();
-      if (token) {
-        statusEl.textContent = 'Signing you in…';
-        const res = await fetch('/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (res.status === 401) {
-          // Check if Clerk says user is signed in but backend rejects token
-          const clerkUser = window.Clerk?.user;
-          if (clerkUser) {
-            // User is signed in to Clerk but token is invalid - token mismatch issue
-            sessionStorage.setItem('authRedirectCount', String(redirectCountNum + 1));
-            statusEl.textContent = 'Authentication error: Token validation failed.';
-            errorEl.style.display = 'block';
-            errorEl.textContent = 'You are signed in, but the authentication token could not be verified. Please try signing out and signing in again.';
-            console.error('Token mismatch: Clerk user exists but /me returned 401');
-            return;
-          }
-          
-          // User is actually signed out
-          sessionStorage.removeItem('authRedirectCount');
-          statusEl.textContent = 'You are signed out.';
-          authContainer.classList.remove('hidden');
-          // Mount components for sign-in
-          window.PromptLineAuth.mountSignIn(signInContainer, {
-            fallbackRedirectUrl: window.location.origin,
-          });
-          return;
-        }
-        if (res.status === 403) {
-          sessionStorage.removeItem('authRedirectCount');
-          statusEl.textContent = 'Signed in, but not assigned to an organization.';
-          return;
-        }
-        if (!res.ok) {
-          throw new Error(`Failed to load /me: ${res.status}`);
-        }
-
-        // Success - clear redirect counter and redirect to dashboard
-        sessionStorage.removeItem('authRedirectCount');
-        const me = await res.json();
-        const slug = me?.org?.slug;
-        if (!slug) throw new Error('Missing org.slug in /me response');
-
-        window.location.href = `/${encodeURIComponent(slug)}`;
-        return;
-      }
-      
-      // No token - clear redirect counter
-      sessionStorage.removeItem('authRedirectCount');
-
-      // User is signed out - show embedded components
-      statusEl.textContent = '';
-      authContainer.classList.remove('hidden');
-      
-      // Mount sign-in component
-      window.PromptLineAuth.mountSignIn(signInContainer, {
-        fallbackRedirectUrl: window.location.origin,
+  // Mobile hamburger menu for public pages
+  (function() {
+    const hamburgerBtn = document.getElementById('public-hamburger-btn');
+    const navWrapper = document.getElementById('public-nav-wrapper');
+    
+    if (hamburgerBtn && navWrapper) {
+      hamburgerBtn.addEventListener('click', function() {
+        navWrapper.classList.toggle('menu-open');
+        hamburgerBtn.classList.toggle('active');
       });
       
-      // Note: After sign-in, Clerk will redirect to fallbackRedirectUrl (/)
-      // The page will reload and the authentication check above will detect the user
-      // and redirect to their org dashboard
-    } catch (e) {
-      console.error('Authentication initialization error:', e);
-      statusEl.textContent = 'Unable to initialize authentication.';
-      errorEl.style.display = 'block';
-      errorEl.textContent = (e instanceof Error ? e.message : (typeof e === 'string' ? e : String(e))) || 'Unknown error occurred';
+      // Close menu when clicking outside
+      document.addEventListener('click', function(event) {
+        if (!hamburgerBtn.contains(event.target) && !navWrapper.contains(event.target)) {
+          navWrapper.classList.remove('menu-open');
+          hamburgerBtn.classList.remove('active');
+        }
+      });
     }
   })();
 </script>

@@ -1,0 +1,133 @@
+{% extends "layouts/base.njk" %}
+
+{% block title %}Pricing - PromptLineAI{% endblock %}
+
+{% block content %}
+<!-- Pricing Header -->
+<section class="pricing-header">
+  <div class="container">
+    <h1 class="pricing-title">Simple, Transparent Pricing</h1>
+    <p class="pricing-subtitle">Choose the plan that fits your organization. All plans include full access to compliance monitoring and analytics.</p>
+  </div>
+</section>
+
+<!-- Pricing Tiers -->
+<section class="pricing-tiers">
+  <div class="container">
+    <div class="pricing-grid">
+      <!-- Starter Tier -->
+      <div class="pricing-card">
+        <div class="pricing-card-header">
+          <h3>Starter</h3>
+          <div class="pricing-price">
+            <span class="price-amount">$29</span>
+            <span class="price-period">/device/month</span>
+          </div>
+        </div>
+        <div class="pricing-card-body">
+          <ul class="pricing-features">
+            <li>Up to 10 devices</li>
+            <li>Real-time monitoring</li>
+            <li>Basic analytics</li>
+            <li>Email support</li>
+          </ul>
+          <a href="{{ CLERK_SIGN_IN_URL if CLERK_SIGN_IN_URL else '#' }}" class="btn btn-primary btn-block">Get Started</a>
+        </div>
+      </div>
+
+      <!-- Professional Tier -->
+      <div class="pricing-card pricing-card-featured">
+        <div class="pricing-badge">Most Popular</div>
+        <div class="pricing-card-header">
+          <h3>Professional</h3>
+          <div class="pricing-price">
+            <span class="price-amount">$49</span>
+            <span class="price-period">/device/month</span>
+          </div>
+        </div>
+        <div class="pricing-card-body">
+          <ul class="pricing-features">
+            <li>Up to 50 devices</li>
+            <li>Advanced analytics</li>
+            <li>Custom compliance policies</li>
+            <li>Priority support</li>
+            <li>API access</li>
+          </ul>
+          <a href="{{ CLERK_SIGN_IN_URL if CLERK_SIGN_IN_URL else '#' }}" class="btn btn-primary btn-block">Get Started</a>
+        </div>
+      </div>
+
+      <!-- Enterprise Tier -->
+      <div class="pricing-card">
+        <div class="pricing-card-header">
+          <h3>Enterprise</h3>
+          <div class="pricing-price">
+            <span class="price-amount">Custom</span>
+            <span class="price-period">pricing</span>
+          </div>
+        </div>
+        <div class="pricing-card-body">
+          <ul class="pricing-features">
+            <li>Unlimited devices</li>
+            <li>Dedicated support</li>
+            <li>Custom integrations</li>
+            <li>SLA guarantee</li>
+            <li>On-premise options</li>
+          </ul>
+          <a href="{{ CLERK_SIGN_IN_URL if CLERK_SIGN_IN_URL else '#' }}" class="btn btn-secondary btn-block">Contact Sales</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ Section -->
+<section class="pricing-faq">
+  <div class="container">
+    <h2 class="section-title">Frequently Asked Questions</h2>
+    <div class="faq-grid">
+      <div class="faq-item">
+        <h3>How does per-device pricing work?</h3>
+        <p>You pay for each device (computer) that has the Chrome extension installed. Each device is counted separately, regardless of how many users access it.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Can I change plans later?</h3>
+        <p>Yes, you can upgrade or downgrade your plan at any time. Changes take effect on your next billing cycle.</p>
+      </div>
+      <div class="faq-item">
+        <h3>What payment methods do you accept?</h3>
+        <p>We accept all major credit cards. Enterprise customers can arrange invoicing and payment terms.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Is there a free trial?</h3>
+        <p>Contact us to discuss a trial period for your organization. We're happy to help you evaluate PromptLineAI.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Mobile hamburger menu for public pages
+  (function() {
+    const hamburgerBtn = document.getElementById('public-hamburger-btn');
+    const navWrapper = document.getElementById('public-nav-wrapper');
+    
+    if (hamburgerBtn && navWrapper) {
+      hamburgerBtn.addEventListener('click', function() {
+        navWrapper.classList.toggle('menu-open');
+        hamburgerBtn.classList.toggle('active');
+      });
+      
+      // Close menu when clicking outside
+      document.addEventListener('click', function(event) {
+        if (!hamburgerBtn.contains(event.target) && !navWrapper.contains(event.target)) {
+          navWrapper.classList.remove('menu-open');
+          hamburgerBtn.classList.remove('active');
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}
