@@ -1,5 +1,10 @@
 (function () {
-  function loadScript(src, publishableKey) {
+  /**
+   * @param {string} src - Clerk.js script URL
+   * @param {string} publishableKey - Clerk publishable key
+   * @param {{ syncHost?: string }} [options] - Optional. syncHost: origin for Chrome extension sync host (e.g. window.location.origin)
+   */
+  function loadScript(src, publishableKey, options) {
     return new Promise((resolve, reject) => {
       console.log(`[Clerk.js Loader] Loading script from: ${src}`);
       
@@ -20,17 +25,22 @@
       if (publishableKey) {
         s.setAttribute('data-clerk-publishable-key', publishableKey);
       }
+      // Sync host for Chrome extension: tell Clerk this page is the sync host so session is broadcast to the extension
+      if (options && options.syncHost) {
+        s.setAttribute('data-clerk-sync-host', options.syncHost);
+      }
       
       let resolved = false;
       let timeoutId = null;
+      const loadOptions = options && options.syncHost ? { syncHost: options.syncHost } : undefined;
       
       s.onload = async () => {
         console.log(`[Clerk.js Loader] Script tag loaded, initializing Clerk...`);
         
         try {
-          // Per Clerk.com documentation: must call Clerk.load() after script loads
+          // Per Clerk.com documentation: must call Clerk.load() after script loads. Pass syncHost so extension receives session.
           if (window.Clerk && typeof window.Clerk.load === 'function') {
-            await window.Clerk.load();
+            await window.Clerk.load(loadOptions);
             console.log(`[Clerk.js Loader] Clerk.load() completed successfully`);
             
             if (timeoutId) clearTimeout(timeoutId);
@@ -74,7 +84,11 @@
   }
 
 
-  async function initClerk() {
+  /**
+   * Initialize Clerk. On the sync-host page, pass { syncHost: window.location.origin } so the extension receives the session.
+   * @param {{ syncHost?: string }} [options] - Optional. syncHost: origin for Chrome extension sync host (e.g. window.location.origin)
+   */
+  async function initClerk(options) {
     console.log('[Clerk.js Loader] Initializing Clerk...');
     
     const env = window.__ENV || {};
@@ -98,8 +112,8 @@
       try {
         // Load script with publishable key attribute and initialize via Clerk.load()
         // Per Clerk.com documentation: script tag needs data-clerk-publishable-key
-        // and Clerk.load() must be called after script loads
-        await loadScript(clerkJsUrl, pk);
+        // and Clerk.load() must be called after script loads. Pass options for sync host when on sync-host page.
+        await loadScript(clerkJsUrl, pk, options);
       } catch (error) {
         console.error('[Clerk.js Loader] Script loading/initialization failed:', error);
         
@@ -109,6 +123,14 @@
           `Check browser console and network tab for details.`;
         console.error(`[Clerk.js Loader] ${errorMsg}`);
         throw new Error(errorMsg);
+      }
+    } else if (options && options.syncHost && window.Clerk && typeof window.Clerk.load === 'function') {
+      // Clerk already loaded (e.g. from another page) but this page is the sync host - enable sync host so extension receives session
+      try {
+        await window.Clerk.load({ syncHost: options.syncHost });
+        console.log('[Clerk.js Loader] Clerk.load({ syncHost }) completed for sync-host page');
+      } catch (err) {
+        console.warn('[Clerk.js Loader] Clerk.load({ syncHost }) failed (extension sync may not work):', err);
       }
     }
     

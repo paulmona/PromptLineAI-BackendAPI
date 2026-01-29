@@ -17,7 +17,8 @@
     
     <div id="success-message" style="display: none; margin-top: 20px; padding: 16px; background: #e8f5e9; color: #2e7d32; border-radius: 4px; text-align: center;">
       <strong>✓ Successfully signed in!</strong>
-      <p style="margin: 8px 0 0 0; font-size: 14px;">Your authentication has been synced with the extension. You can close this page.</p>
+      <p style="margin: 8px 0 0 0; font-size: 14px;">Your authentication has been synced with the extension. You can close this tab.</p>
+      <p style="margin: 8px 0 0 0; font-size: 13px; color: #555;">Close and reopen the extension popup to see your signed-in status.</p>
     </div>
   </div>
 </div>
@@ -40,7 +41,7 @@
         return;
       }
 
-      await window.PromptLineAuth.initClerk();
+      await window.PromptLineAuth.initClerk({ syncHost: window.location.origin });
       
       // Check if user is already signed in
       if (!window.Clerk || !window.Clerk.loaded) {
