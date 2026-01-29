@@ -124,6 +124,14 @@ fastify.get('/pricing', async (_request, reply: FastifyReply) => {
   }));
 });
 
+// Login page (must be before /:orgSlug to avoid route conflicts)
+fastify.get('/login', async (_request, reply: FastifyReply) => {
+  return (reply as any).view('pages/login.njk', getTemplateContext({
+    showUserControls: false,
+    orgSlug: null,
+  }));
+});
+
 // Admin UI page (must be before /admin/policy-access to avoid conflicts)
 fastify.get('/admin', async (_request, reply: FastifyReply) => {
   return (reply as any).view('pages/admin.njk', getTemplateContext({

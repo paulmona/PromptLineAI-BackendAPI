@@ -55,26 +55,108 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/env.js"></script>
+<script src="/assets/auth.js"></script>
 <script>
-  // Mobile hamburger menu for public pages
-  (function() {
-    const hamburgerBtn = document.getElementById('public-hamburger-btn');
-    const navWrapper = document.getElementById('public-nav-wrapper');
-    
-    if (hamburgerBtn && navWrapper) {
-      hamburgerBtn.addEventListener('click', function() {
-        navWrapper.classList.toggle('menu-open');
-        hamburgerBtn.classList.toggle('active');
-      });
+  (async () => {
+    // Check if user is authenticated and redirect to dashboard if so
+    try {
+      if (!window.PromptLineAuth || !window.PromptLineAuth.initClerk) {
+        // Auth not available, show marketing page
+        return;
+      }
+
+      await window.PromptLineAuth.initClerk();
       
-      // Close menu when clicking outside
-      document.addEventListener('click', function(event) {
-        if (!hamburgerBtn.contains(event.target) && !navWrapper.contains(event.target)) {
-          navWrapper.classList.remove('menu-open');
-          hamburgerBtn.classList.remove('active');
-        }
+      // Check if user is already signed in
+      if (!window.Clerk || !window.Clerk.loaded) {
+        // Clerk not loaded, show marketing page
+        return;
+      }
+
+      const session = await window.Clerk.session;
+      if (!session) {
+        // User is not signed in, show marketing page
+        return;
+      }
+
+      const token = await session.getToken();
+      if (!token) {
+        // No token available, show marketing page
+        return;
+      }
+
+      // Check if user has organization memberships using Clerk.js
+      const user = await window.Clerk.user;
+      if (!user) {
+        // No user object, show marketing page
+        return;
+      }
+
+      // Get user's organization memberships
+      const orgMemberships = user.organizationMemberships || [];
+      const orgCount = orgMemberships.length;
+
+      if (orgCount === 0) {
+        // User is authenticated but has no org memberships
+        // Show marketing page (they need to be added to an org first)
+        console.log('User authenticated but has no organization memberships');
+        return;
+      }
+
+      if (orgCount > 1) {
+        // User has multiple orgs - this shouldn't happen but handle gracefully
+        console.warn(`User has ${orgCount} org memberships, using first one`);
+      }
+
+      // User has at least one org - call /me to get org slug and redirect
+      const res = await fetch('/me', {
+        headers: { Authorization: `Bearer ${token}` }
       });
+
+      if (res.ok) {
+        const me = await res.json();
+        const slug = me?.org?.slug;
+        if (slug) {
+          // Redirect to user's dashboard
+          window.location.href = `/${encodeURIComponent(slug)}`;
+          return;
+        }
+      }
+
+      // If /me fails (403, 500, etc.), show marketing page
+      if (res.status === 403) {
+        console.log('User authenticated but organization not provisioned');
+      } else {
+        console.error('Failed to get user info:', res.status);
+      }
+      
+      // Show marketing page (current behavior)
+    } catch (e) {
+      // Error checking auth - show marketing page anyway
+      console.error('Auth check error:', e);
     }
+
+    // Mobile hamburger menu for public pages
+    (function() {
+      const hamburgerBtn = document.getElementById('public-hamburger-btn');
+      const navWrapper = document.getElementById('public-nav-wrapper');
+      
+      if (hamburgerBtn && navWrapper) {
+        hamburgerBtn.addEventListener('click', function() {
+          navWrapper.classList.toggle('menu-open');
+          hamburgerBtn.classList.toggle('active');
+        });
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+          if (!hamburgerBtn.contains(event.target) && !navWrapper.contains(event.target)) {
+            navWrapper.classList.remove('menu-open');
+            hamburgerBtn.classList.remove('active');
+          }
+        });
+      }
+    })();
   })();
 </script>
 {% endblock %}
