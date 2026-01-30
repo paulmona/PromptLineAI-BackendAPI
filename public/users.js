@@ -183,7 +183,7 @@ function renderUsers(users) {
   }
 
   tbody.innerHTML = users.map((user) => {
-    const label = `User ${user.id.slice(0, 8)}…`;
+    const label = user.name || `User ${user.id.slice(0, 8)}…`;
     const userUrl = `/${encodeURIComponent(orgSlug)}/users/${encodeURIComponent(user.id)}`;
 
     return `

@@ -245,7 +245,7 @@ function renderDashboard(data) {
   if (data.user_id) {
     const headerSpan = document.getElementById('user-activity-header');
     if (headerSpan) {
-      headerSpan.textContent = `Activity for user ${data.user_id.slice(0, 8)}…`;
+      headerSpan.textContent = data.user_name ? `Activity for ${data.user_name}` : `Activity for user ${data.user_id.slice(0, 8)}…`;
     }
   }
 

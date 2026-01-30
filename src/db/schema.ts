@@ -24,6 +24,7 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
   externalUid: text('external_uid'),
   orgId: uuid('org_id').references(() => orgs.id, { onDelete: 'set null' }),
+  name: text('name'),
 });
 
 export const devices = pgTable('devices', {

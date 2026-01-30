@@ -5,6 +5,7 @@ import logger from '../logger.js';
 import type { EventInput, PolicyConfig } from '../validation.js';
 import { randomUUID } from 'crypto';
 import env from '../env.js';
+import { clerkClient } from '../auth/clerk.js';
 
 /**
  * Lookup or create org by name (exact match).
@@ -137,9 +138,24 @@ export class OrgMismatchForUserError extends Error {
 }
 
 /**
+ * Build display name from Clerk user (firstName, lastName, username).
+ * Falls back to "User" if nothing is set.
+ */
+function clerkUserDisplayName(clerkUser: { firstName?: string | null; lastName?: string | null; username?: string | null }): string {
+  const first = clerkUser.firstName?.trim() ?? '';
+  const last = clerkUser.lastName?.trim() ?? '';
+  const full = [first, last].filter(Boolean).join(' ').trim();
+  if (full) return full;
+  const username = clerkUser.username?.trim();
+  if (username) return username;
+  return 'User';
+}
+
+/**
  * Ensures a user row exists for the Clerk user.
  * B2B invariant: if the user already exists with a different org_id, throws OrgMismatchForUserError
  * (do not update org_id). DB trigger also prevents updating users.org_id when external_uid is set.
+ * When creating a new user, fetches display name from Clerk once and stores it (no Clerk call on dashboard load).
  */
 export async function ensureUserByExternalUid(args: {
   externalUid: string;
@@ -153,12 +169,21 @@ export async function ensureUserByExternalUid(args: {
     return existing;
   }
 
+  let displayName: string | null = null;
+  try {
+    const clerkUser = await clerkClient.users.getUser(args.externalUid);
+    displayName = clerkUserDisplayName(clerkUser);
+  } catch (err) {
+    logger.warn({ err, externalUid: args.externalUid }, 'Failed to fetch Clerk user for display name; creating user with null name');
+  }
+
   const created = await db
     .insert(users)
     .values({
       id: randomUUID(),
       externalUid: args.externalUid,
       orgId: args.orgId,
+      name: displayName,
     })
     .returning({ id: users.id, orgId: users.orgId });
 
@@ -167,15 +192,15 @@ export async function ensureUserByExternalUid(args: {
 
 /**
  * List users in an organization (for Users list page).
- * Returns id and optional external_uid; only users with org_id set.
+ * Returns id, optional external_uid, and optional name (from Clerk).
  */
-export async function listUsersByOrgId(orgId: string): Promise<Array<{ id: string; external_uid: string | null }>> {
+export async function listUsersByOrgId(orgId: string): Promise<Array<{ id: string; external_uid: string | null; name: string | null }>> {
   const rows = await db
-    .select({ id: users.id, external_uid: users.externalUid })
+    .select({ id: users.id, external_uid: users.externalUid, name: users.name })
     .from(users)
     .where(eq(users.orgId, orgId))
     .orderBy(users.id);
-  return rows.map((r) => ({ id: r.id, external_uid: r.external_uid }));
+  return rows.map((r) => ({ id: r.id, external_uid: r.external_uid, name: r.name }));
 }
 
 /**
@@ -391,6 +416,17 @@ export async function getSummary(
     deviceName = deviceResult[0]?.deviceName;
   }
 
+  // Get user name if user_id is provided (for user-detail page)
+  let userName: string | null = null;
+  if (userId) {
+    const userResult = await db
+      .select({ name: users.name })
+      .from(users)
+      .where(and(eq(users.id, userId), eq(users.orgId, orgId)))
+      .limit(1);
+    userName = userResult[0]?.name ?? null;
+  }
+
   // Total events
   const totalEventsResult = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -489,6 +525,7 @@ export async function getSummary(
     files: Array<{ file_name: string; count: number }>;
     device_name?: string;
     user_id?: string;
+    user_name?: string | null;
   } = {
     range,
     total_events: totalEvents,
@@ -505,6 +542,7 @@ export async function getSummary(
   }
   if (userId) {
     result.user_id = userId;
+    result.user_name = userName;
   }
 
   return result;

@@ -17,6 +17,7 @@ export async function usersRoutes(fastify: FastifyInstance) {
         users: usersList.map((u) => ({
           id: u.id,
           external_uid: u.external_uid ?? undefined,
+          name: u.name ?? undefined,
         })),
       };
     } catch (err) {
