@@ -12,7 +12,6 @@ import { healthzRoutes } from './routes/healthz.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { summaryRoutes } from './routes/summary.js';
 import { meRoutes } from './routes/me.js';
-import { devicesRoutes } from './routes/devices.js';
 import { usersRoutes } from './routes/users.js';
 import { policyRoutes } from './routes/policy.js';
 import { adminRoutes } from './routes/admin.js';
@@ -64,7 +63,6 @@ await fastify.register(healthzRoutes);
 await fastify.register(ingestRoutes);
 await fastify.register(meRoutes);
 await fastify.register(summaryRoutes);
-await fastify.register(devicesRoutes);
 await fastify.register(usersRoutes);
 await fastify.register(policyRoutes);
 
@@ -167,7 +165,7 @@ fastify.get('/platform-admin', async (_request, reply: FastifyReply) => {
   }));
 });
 
-// Policy page route (must be before /:orgSlug/devices)
+// Policy page route
 fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/policy', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
   const orgSlug = decodeURIComponent(request.params.orgSlug);
   return (reply as any).view('pages/policy.njk', getTemplateContext({
@@ -200,27 +198,6 @@ fastify.get<{ Params: { orgSlug: string; userId: string } }>('/:orgSlug/users/:u
 fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/users', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
   const orgSlug = decodeURIComponent(request.params.orgSlug);
   return (reply as any).view('pages/users.njk', getTemplateContext({
-    showUserControls: true,
-    orgSlug,
-  }));
-});
-
-// Device detail route (must be before /:orgSlug/devices)
-fastify.get<{ Params: { orgSlug: string; deviceId: string } }>('/:orgSlug/devices/:deviceId', async (request: FastifyRequest<{ Params: { orgSlug: string; deviceId: string } }>, reply: FastifyReply) => {
-  const orgSlug = decodeURIComponent(request.params.orgSlug);
-  const deviceId = decodeURIComponent(request.params.deviceId);
-  return (reply as any).view('pages/device-detail.njk', getTemplateContext({
-    showUserControls: true,
-    orgSlug,
-    deviceId,
-    showRangeSelector: true,
-  }));
-});
-
-// Device list route (must be before /:orgSlug)
-fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/devices', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
-  const orgSlug = decodeURIComponent(request.params.orgSlug);
-  return (reply as any).view('pages/devices.njk', getTemplateContext({
     showUserControls: true,
     orgSlug,
   }));

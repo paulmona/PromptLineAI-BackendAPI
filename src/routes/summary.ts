@@ -6,7 +6,6 @@ import { requireClerkAuth } from '../auth/middleware.js';
 
 const summaryQuerySchema = z.object({
   range: z.enum(['24h', '7d', '30d']).default('24h'),
-  device_id: z.string().uuid().optional(),
   user_id: z.string().uuid().optional(),
 });
 
@@ -20,7 +19,7 @@ export async function summaryRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const { range, device_id, user_id } = queryResult.data;
+    const { range, user_id } = queryResult.data;
 
     try {
       const ctx = request.authContext;
@@ -40,8 +39,8 @@ export async function summaryRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Get summary (filtered by org_id, optionally by device_id and/or user_id)
-      const summary = await getSummary(ctx.internalOrgId, range, device_id, user_id);
+      // Get summary (filtered by org_id, optionally by user_id)
+      const summary = await getSummary(ctx.internalOrgId, range, user_id);
 
       return summary;
     } catch (err) {

@@ -961,13 +961,13 @@ components:
         counts:
           type: object
           required:
-            - devices_count
+            - users_count
             - events_count
             - ingest_keys_count
           properties:
-            devices_count:
+            users_count:
               type: integer
-              description: Total number of devices
+              description: Total number of users
               example: 10
             events_count:
               type: integer
@@ -1013,13 +1013,13 @@ components:
         counts:
           type: object
           required:
-            - devices_count
+            - users_count
             - events_count
             - ingest_keys_count
           properties:
-            devices_count:
+            users_count:
               type: integer
-              description: Total number of devices
+              description: Total number of users
               example: 10
             events_count:
               type: integer

@@ -152,7 +152,7 @@ async function loadOrgs() {
           <td class="admin-table-cell">${escapeHtml(org.name || '-')}</td>
           <td class="admin-table-cell">${escapeHtml(org.slug || '-')}</td>
           <td class="admin-table-cell">${formatDate(org.created_at)}</td>
-          <td class="admin-table-cell" style="text-align: right;">${org.counts.devices_count}</td>
+          <td class="admin-table-cell" style="text-align: right;">${org.counts.users_count}</td>
           <td class="admin-table-cell" style="text-align: right;">${org.counts.events_count}</td>
           <td class="admin-table-cell" style="text-align: right;">${org.counts.ingest_keys_count}</td>
           <td class="admin-table-cell admin-actions-cell">
@@ -242,7 +242,7 @@ async function deleteOrg(orgId, orgName) {
   const confirmMessage = `⚠️ DANGER: Delete Organization\n\n` +
     `Are you absolutely sure you want to delete "${orgName}"?\n\n` +
     `This will PERMANENTLY delete:\n` +
-    `- All devices\n` +
+    `- All users and devices\n` +
     `- All events\n` +
     `- All ingest keys\n` +
     `- User associations (users will be orphaned)\n\n` +

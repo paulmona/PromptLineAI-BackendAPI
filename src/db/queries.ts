@@ -366,14 +366,12 @@ export async function insertEvents(
 
 /**
  * Get summary statistics for an org within a time range.
- * All queries are filtered by org_id, optionally by device_id and/or user_id.
- * When device_id is provided, also returns device_name for display.
+ * All queries are filtered by org_id, optionally by user_id.
  * When not filtering by user, returns unique_users (distinct user_id, excluding nulls).
  */
 export async function getSummary(
   orgId: string,
   range: '24h' | '7d' | '30d',
-  deviceId?: string,
   userId?: string
 ) {
   const now = new Date();
@@ -397,24 +395,10 @@ export async function getSummary(
 
   // Build base where conditions
   const baseConditions = [eq(events.orgId, orgId), gte(events.occurredAt, startTime)];
-  if (deviceId) {
-    baseConditions.push(eq(events.deviceId, deviceId));
-  }
   if (userId) {
     baseConditions.push(eq(events.userId, userId));
   }
   const whereClause = and(...baseConditions);
-
-  // Get device_name if device_id is provided
-  let deviceName: string | undefined;
-  if (deviceId) {
-    const deviceResult = await db
-      .select({ deviceName: devices.deviceName })
-      .from(devices)
-      .where(and(eq(devices.id, deviceId), eq(devices.orgId, orgId)))
-      .limit(1);
-    deviceName = deviceResult[0]?.deviceName;
-  }
 
   // Get user name if user_id is provided (for user-detail page)
   let userName: string | null = null;
@@ -434,18 +418,6 @@ export async function getSummary(
     .where(whereClause);
 
   const totalEvents = totalEventsResult[0]?.count ?? 0;
-
-  // Unique devices (only meaningful when not filtering by device)
-  let uniqueDevices = 0;
-  if (!deviceId) {
-    const uniqueDevicesResult = await db
-      .select({ count: sql<number>`count(distinct ${events.deviceId})::int` })
-      .from(events)
-      .where(whereClause);
-    uniqueDevices = uniqueDevicesResult[0]?.count ?? 0;
-  } else {
-    uniqueDevices = 1;
-  }
 
   // Unique users (only when not filtering by user; count distinct user_id excluding nulls)
   let uniqueUsers = 0;
@@ -517,19 +489,16 @@ export async function getSummary(
   const result: {
     range: string;
     total_events: number;
-    unique_devices: number;
     unique_users: number;
     tools: Array<{ tool: string; count: number }>;
     event_types: Array<{ event_type: string; count: number }>;
     time_buckets: Array<{ bucket: string; count: number }>;
     files: Array<{ file_name: string; count: number }>;
-    device_name?: string;
     user_id?: string;
     user_name?: string | null;
   } = {
     range,
     total_events: totalEvents,
-    unique_devices: uniqueDevices,
     unique_users: uniqueUsers,
     tools: toolsResult.map((r) => ({ tool: r.tool, count: r.count })),
     event_types: eventTypesResult.map((r) => ({ event_type: r.eventType, count: r.count })),
@@ -537,9 +506,6 @@ export async function getSummary(
     files: filesResult.map((r) => ({ file_name: r.fileName!, count: r.count })),
   };
 
-  if (deviceName) {
-    result.device_name = deviceName;
-  }
   if (userId) {
     result.user_id = userId;
     result.user_name = userName;
@@ -576,7 +542,7 @@ export async function getOrgPolicyConfig(orgId: string): Promise<PolicyConfig | 
 }
 
 /**
- * Get paginated list of organizations with counts (devices, events, ingest keys).
+ * Get paginated list of organizations with counts (users, events, ingest keys).
  * Used by platform admin interface.
  */
 export async function getOrgsList(args: { limit: number; offset: number }) {
@@ -610,12 +576,12 @@ export async function getOrgsList(args: { limit: number; offset: number }) {
   // Get counts for each org
   const orgsWithCounts = await Promise.all(
     orgsList.map(async (org) => {
-      // Count devices
-      const devicesCountResult = await db
+      // Count users
+      const usersCountResult = await db
         .select({ count: sql<number>`count(*)::int` })
-        .from(devices)
-        .where(eq(devices.orgId, org.id));
-      const devicesCount = devicesCountResult[0]?.count ?? 0;
+        .from(users)
+        .where(eq(users.orgId, org.id));
+      const usersCount = usersCountResult[0]?.count ?? 0;
 
       // Count events
       const eventsCountResult = await db
@@ -638,7 +604,7 @@ export async function getOrgsList(args: { limit: number; offset: number }) {
         external_org_id: org.externalOrgId,
         created_at: org.createdAt.toISOString(),
         counts: {
-          devices_count: devicesCount,
+          users_count: usersCount,
           events_count: eventsCount,
           ingest_keys_count: ingestKeysCount,
         },
@@ -677,12 +643,12 @@ export async function getOrgDetail(orgId: string) {
 
   const org = orgResult[0];
 
-  // Count devices
-  const devicesCountResult = await db
+  // Count users
+  const usersCountResult = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(devices)
-    .where(eq(devices.orgId, org.id));
-  const devicesCount = devicesCountResult[0]?.count ?? 0;
+    .from(users)
+    .where(eq(users.orgId, org.id));
+  const usersCount = usersCountResult[0]?.count ?? 0;
 
   // Count events
   const eventsCountResult = await db
@@ -705,7 +671,7 @@ export async function getOrgDetail(orgId: string) {
     external_org_id: org.externalOrgId,
     created_at: org.createdAt.toISOString(),
     counts: {
-      devices_count: devicesCount,
+      users_count: usersCount,
       events_count: eventsCount,
       ingest_keys_count: ingestKeysCount,
     },
