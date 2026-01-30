@@ -18,7 +18,7 @@ class DeviceOrgMismatchError extends Error {
 
 export async function ingestRoutes(fastify: FastifyInstance) {
   fastify.post('/ingest', { preHandler: [requireClerkAuth] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const requestId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const requestId = (request as { id?: string }).id ?? `${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const clientIp = request.ip || request.headers['x-forwarded-for'] || 'unknown';
 
     logger.info(
@@ -33,13 +33,11 @@ export async function ingestRoutes(fastify: FastifyInstance) {
       'Incoming ingest request'
     );
 
-    // Get org ID from Clerk authentication context
+    // Tenant and user attribution come solely from request.authContext (set by requireClerkAuth).
+    // Any user/org identifiers in the request body are ignored; validation rejects them in events.
     const authContext = request.authContext;
     if (!authContext) {
-      return reply.code(401).send({
-        error: 'Unauthorized',
-        code: 'ORG_REQUIRED',
-      });
+      return reply.code(401).send({ code: 'AUTH_REQUIRED', request_id: requestId });
     }
 
     const resolvedOrgId = authContext.internalOrgId;

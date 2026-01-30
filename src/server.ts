@@ -1,6 +1,7 @@
 import Fastify, { FastifyRequest, FastifyReply } from 'fastify';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 import fastifyStatic from '@fastify/static';
 import fastifyView from '@fastify/view';
 import nunjucks from 'nunjucks';
@@ -23,6 +24,7 @@ const fastify = Fastify({
   logger,
   disableRequestLogging: true, // We'll log manually for /ingest
   bodyLimit: 1_000_000, // 1MB basic anti-abuse limit for /ingest
+  genReqId: (req) => (req.headers['x-request-id'] as string)?.trim() || randomUUID(),
 });
 
 // CSP policy to allow Clerk.js scripts from FAPI URL (per Clerk.com documentation)

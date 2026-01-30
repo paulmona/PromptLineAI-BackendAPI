@@ -122,8 +122,24 @@ export async function getUserByExternalUid(externalUid: string): Promise<{ id: s
 }
 
 /**
+ * Thrown when a user (external_uid) already exists linked to a different org.
+ * B2B invariant: user never moves org. Middleware maps this to 403 ORG_MISMATCH_FOR_USER.
+ */
+export class OrgMismatchForUserError extends Error {
+  constructor(
+    public readonly externalUid: string,
+    public readonly existingOrgId: string | null,
+    public readonly requestedOrgId: string
+  ) {
+    super('User is already linked to a different organization');
+    this.name = 'OrgMismatchForUserError';
+  }
+}
+
+/**
  * Ensures a user row exists for the Clerk user.
- * We intentionally generate our own UUID for id to avoid relying on unknown users table defaults.
+ * B2B invariant: if the user already exists with a different org_id, throws OrgMismatchForUserError
+ * (do not update org_id). DB trigger also prevents updating users.org_id when external_uid is set.
  */
 export async function ensureUserByExternalUid(args: {
   externalUid: string;
@@ -131,14 +147,8 @@ export async function ensureUserByExternalUid(args: {
 }): Promise<{ id: string; orgId: string | null }> {
   const existing = await getUserByExternalUid(args.externalUid);
   if (existing) {
-    // Keep org in sync with invariant: user belongs to exactly one org
     if (existing.orgId !== args.orgId) {
-      const updated = await db
-        .update(users)
-        .set({ orgId: args.orgId })
-        .where(eq(users.id, existing.id))
-        .returning({ id: users.id, orgId: users.orgId });
-      return updated[0];
+      throw new OrgMismatchForUserError(args.externalUid, existing.orgId, args.orgId);
     }
     return existing;
   }

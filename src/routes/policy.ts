@@ -12,12 +12,11 @@ export async function policyRoutes(fastify: FastifyInstance) {
     { preHandler: [requireClerkAuth] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
+        const requestId = (request as { id?: string }).id;
         const authContext = request.authContext;
         if (!authContext) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            code: 'ORG_REQUIRED',
-          });
+          const body = requestId ? { code: 'AUTH_REQUIRED' as const, request_id: requestId } : { code: 'AUTH_REQUIRED' as const };
+          return reply.code(401).send(body);
         }
 
         const config = await getOrgPolicyConfig(authContext.internalOrgId);

@@ -1,9 +1,34 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { clerkClient, verifyClerkBearerToken } from './clerk.js';
 import { getSingleHeaderValue } from './headers.js';
-import { ensureOrgByExternalOrgId, ensureUserByExternalUid } from '../db/queries.js';
+import {
+  ensureOrgByExternalOrgId,
+  ensureUserByExternalUid,
+  getOrgByExternalOrgId,
+  OrgMismatchForUserError,
+} from '../db/queries.js';
 import logger from '../logger.js';
 import env from '../env.js';
+
+/** Short-lived cache for org resolution fallback (token lacked org claim). Key: clerkUserId, Value: { orgId, expiresAt }. TTL 90s. */
+const orgResolutionCache = new Map<
+  string,
+  { orgId: string; expiresAt: number }
+>();
+const ORG_CACHE_TTL_MS = 90_000;
+
+function getCachedOrgId(clerkUserId: string): string | null {
+  const entry = orgResolutionCache.get(clerkUserId);
+  if (!entry || Date.now() > entry.expiresAt) {
+    if (entry) orgResolutionCache.delete(clerkUserId);
+    return null;
+  }
+  return entry.orgId;
+}
+
+function setCachedOrgId(clerkUserId: string, orgId: string): void {
+  orgResolutionCache.set(clerkUserId, { orgId, expiresAt: Date.now() + ORG_CACHE_TTL_MS });
+}
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -20,26 +45,25 @@ declare module 'fastify' {
 
 async function resolveClerkOrgId(args: { clerkUserId: string; tokenOrgId: string | null }): Promise<string> {
   if (args.tokenOrgId) {
-    logger.debug({ clerkUserId: args.clerkUserId, hasTokenOrgId: true }, 'Organization ID found in token, using it');
+    logger.debug({ hasTokenOrgId: true }, 'Organization ID found in token, using it');
     return args.tokenOrgId;
   }
 
+  const cached = getCachedOrgId(args.clerkUserId);
+  if (cached) {
+    logger.debug({ hasCachedOrg: true }, 'Organization ID from cache');
+    return cached;
+  }
+
   // Fallback: if org_id claim is missing, fetch memberships and require exactly one org.
-  // This keeps the invariant: each user belongs to exactly one org (no switching UI).
-  logger.debug({ clerkUserId: args.clerkUserId }, 'Organization ID not in token, fetching from Clerk API (fallback)');
-  
+  logger.debug({}, 'Organization ID not in token or cache, fetching from Clerk API (fallback)');
+
   const memberships = await clerkClient.users.getOrganizationMembershipList({
     userId: args.clerkUserId,
     limit: 10,
   });
 
-  logger.debug(
-    { 
-      clerkUserId: args.clerkUserId,
-      membershipCount: memberships.data?.length || 0,
-    },
-    'Fetched organization memberships from Clerk'
-  );
+  logger.debug({ membershipCount: memberships.data?.length || 0 }, 'Fetched organization memberships from Clerk');
 
   const orgIds: string[] = memberships.data
     .map((m: any) => (m && m.organization && typeof m.organization.id === 'string' ? m.organization.id : null))
@@ -47,24 +71,19 @@ async function resolveClerkOrgId(args: { clerkUserId: string; tokenOrgId: string
 
   const unique: string[] = Array.from(new Set(orgIds));
   
-  logger.debug(
-    { 
-      clerkUserId: args.clerkUserId,
-      uniqueOrgCount: unique.length,
-      orgIds: unique,
-    },
-    'Resolved organization IDs from memberships'
-  );
+  logger.debug({ uniqueOrgCount: unique.length }, 'Resolved organization IDs from memberships');
 
   if (unique.length === 0) {
-    throw new Error('ORG_REQUIRED: User must be assigned to exactly one organization, found 0');
+    throw new Error('ORG_CONTEXT_REQUIRED: User must be assigned to exactly one organization, found 0');
   }
   if (unique.length > 1) {
-    throw new Error('ORG_REQUIRED: User must be assigned to exactly one organization, found multiple');
+    throw new Error('ORG_CONTEXT_REQUIRED: User must be assigned to exactly one organization, found multiple');
   }
 
-  logger.debug({ clerkUserId: args.clerkUserId, resolvedOrgId: unique[0] }, 'Resolved organization ID from Clerk API');
-  return unique[0];
+  const resolvedOrgId = unique[0];
+  setCachedOrgId(args.clerkUserId, resolvedOrgId);
+  logger.debug({}, 'Resolved organization ID from Clerk API, cached');
+  return resolvedOrgId;
 }
 
 async function deriveUserRole(args: { clerkUserId: string; clerkOrgId: string }): Promise<'admin' | 'member'> {
@@ -81,124 +100,105 @@ async function deriveUserRole(args: { clerkUserId: string; clerkOrgId: string })
     );
 
     if (!membership) {
-      logger.warn({ clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId }, 'No membership found for org, defaulting to member');
+      logger.warn({}, 'No membership found for org, defaulting to member');
       return 'member';
     }
 
-    // Clerk membership roles: typically "org:admin", "org:member", or just "admin", "member"
     const role = membership.role;
     const roleStr = typeof role === 'string' ? role.toLowerCase() : '';
-    
-    // Map Clerk roles to our app roles
-    // If role contains "admin" (case-insensitive), treat as admin
     if (roleStr.includes('admin')) {
-      logger.debug({ clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId, clerkRole: role }, 'User role derived as admin');
+      logger.debug({ clerkRole: role }, 'User role derived as admin');
       return 'admin';
     }
-
-    logger.debug({ clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId, clerkRole: role }, 'User role derived as member');
+    logger.debug({ clerkRole: role }, 'User role derived as member');
     return 'member';
   } catch (err) {
-    logger.error({ err, clerkUserId: args.clerkUserId, clerkOrgId: args.clerkOrgId }, 'Failed to fetch membership role, defaulting to member');
+    logger.error({ err }, 'Failed to fetch membership role, defaulting to member');
     // Fail-safe: default to member if we can't determine role
     return 'member';
   }
 }
 
+function send401(reply: FastifyReply, requestId?: string): void {
+  const body = requestId ? { code: 'AUTH_REQUIRED' as const, request_id: requestId } : { code: 'AUTH_REQUIRED' as const };
+  reply.code(401).send(body);
+}
+
+function send403(reply: FastifyReply, code: 'ORG_CONTEXT_REQUIRED' | 'ORG_MISMATCH_FOR_USER', requestId?: string): void {
+  const body = requestId ? { code, request_id: requestId } : { code };
+  reply.code(403).send(body);
+}
+
 export async function requireClerkAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const requestId = (request as { id?: string }).id;
   const authHeader = getSingleHeaderValue(request.headers.authorization);
   if (!authHeader.ok) {
-    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
+    return void send401(reply, requestId);
   }
   if (!authHeader.value.toLowerCase().startsWith('bearer ')) {
-    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
+    return void send401(reply, requestId);
   }
 
   const token = authHeader.value.slice('bearer '.length).trim();
   if (!token) {
-    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
+    return void send401(reply, requestId);
   }
 
-  // Log token prefix for debugging (first 20 chars only)
-  const tokenPrefix = token.length > 20 ? `${token.substring(0, 20)}...` : token.substring(0, token.length);
-  logger.debug({ tokenPrefix, tokenLength: token.length, path: request.url }, 'Processing authentication request');
+  logger.debug({ path: request.url, tokenLength: token.length }, 'Processing authentication request');
 
   try {
     const { clerkUserId, tokenOrgId } = await verifyClerkBearerToken(token);
-    logger.debug(
-      { 
-        clerkUserId,
-        hasTokenOrgId: !!tokenOrgId,
-        tokenOrgIdPrefix: tokenOrgId ? tokenOrgId.substring(0, 20) + '...' : null,
-      },
-      'Token verified, resolving organization ID'
-    );
-    
+    logger.debug({ hasTokenOrgId: !!tokenOrgId }, 'Token verified, resolving organization ID');
+
     const clerkOrgId = await resolveClerkOrgId({ clerkUserId, tokenOrgId });
-    logger.debug({ clerkUserId, clerkOrgId }, 'Organization ID resolved');
+    logger.debug({}, 'Organization ID resolved');
 
-    // Safe constrained org bootstrap: fetch canonical org metadata from Clerk (no guessing).
-    const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
-    if (!org?.name || !org?.slug) {
-      logger.warn({ clerkOrgId }, 'Organization metadata missing in Clerk');
-      return void reply.code(403).send({ error: 'Organization metadata missing in Clerk', code: 'ORG_REQUIRED' });
+    // Use local org when it exists; fetch Clerk org metadata only when creating a new org.
+    let ensuredOrg: { id: string; slug: string | null; name: string };
+    const existingOrg = await getOrgByExternalOrgId(clerkOrgId);
+    if (existingOrg) {
+      ensuredOrg = existingOrg;
+    } else {
+      const org = await clerkClient.organizations.getOrganization({ organizationId: clerkOrgId });
+      if (!org?.name || !org?.slug) {
+        logger.warn({}, 'Organization metadata missing in Clerk');
+        return void send403(reply, 'ORG_CONTEXT_REQUIRED', requestId);
+      }
+      ensuredOrg = await ensureOrgByExternalOrgId({
+        externalOrgId: clerkOrgId,
+        name: org.name,
+        slug: org.slug,
+      });
     }
-
-    const ensuredOrg = await ensureOrgByExternalOrgId({
-      externalOrgId: clerkOrgId,
-      name: org.name,
-      slug: org.slug,
-    });
 
     const ensuredUser = await ensureUserByExternalUid({
       externalUid: clerkUserId,
       orgId: ensuredOrg.id,
     });
 
-    // Derive user role from Clerk org membership
     const role = await deriveUserRole({ clerkUserId, clerkOrgId });
 
     request.authContext = {
       clerkUserId,
       clerkOrgId,
       internalOrgId: ensuredOrg.id,
-      orgSlug: ensuredOrg.slug ?? org.slug,
+      orgSlug: ensuredOrg.slug ?? ensuredOrg.name,
       internalUserId: ensuredUser.id,
       role,
     };
   } catch (err) {
-    // Log full error details for debugging
-    const errorDetails = {
-      errorType: err?.constructor?.name,
-      errorMessage: err instanceof Error ? err.message : String(err),
-      errorStack: err instanceof Error ? err.stack : undefined,
-      tokenPrefix,
-      path: request.url,
-    };
-    
-    logger.warn(errorDetails, 'Clerk authentication failed or org context invalid');
-
-    // Differentiate auth vs authorization:
-    // - Invalid token => 401
-    // - Valid token but no org/invalid org context => 403 with error codes
+    const errorType = err?.constructor?.name;
     const message = err instanceof Error ? err.message : String(err);
-    
-    // Check for specific error codes in the message
-    if (message.includes('ORG_REQUIRED')) {
-      return void reply.code(403).send({ error: 'Organization membership required', code: 'ORG_REQUIRED' });
+    logger.warn({ errorType, message, path: request.url, requestId }, 'Clerk authentication failed or org context invalid');
+
+    if (err instanceof OrgMismatchForUserError) {
+      return void send403(reply, 'ORG_MISMATCH_FOR_USER', requestId);
     }
-    if (message.includes('assigned to exactly one organization')) {
-      return void reply.code(403).send({ error: message, code: 'ORG_REQUIRED' });
+    if (message.includes('ORG_CONTEXT_REQUIRED') || message.includes('assigned to exactly one organization') || message.includes('Organization metadata')) {
+      return void send403(reply, 'ORG_CONTEXT_REQUIRED', requestId);
     }
-    if (message.includes('Organization metadata')) {
-      return void reply.code(403).send({ error: message, code: 'ORG_REQUIRED' });
-    }
-    if (message.includes('org')) {
-      return void reply.code(403).send({ error: message, code: 'ORG_REQUIRED' });
-    }
-    
-    // Token verification errors => 401
-    return void reply.code(401).send({ error: 'Unauthorized', code: 'ORG_REQUIRED' });
+
+    return void send401(reply, requestId);
   }
 }
 
@@ -209,7 +209,7 @@ export async function requireOrgAdmin(request: FastifyRequest, reply: FastifyRep
   }
 
   if (ctx.role !== 'admin') {
-    logger.debug({ clerkUserId: ctx.clerkUserId, role: ctx.role }, 'Access denied: admin role required');
+    logger.debug({ internalUserId: ctx.internalUserId, role: ctx.role }, 'Access denied: admin role required');
     return void reply.code(403).send({ error: 'Forbidden: admin access required' });
   }
 }
@@ -228,12 +228,8 @@ export async function requirePlatformAdmin(request: FastifyRequest, reply: Fasti
     return void reply.code(401).send({ error: 'Unauthorized' });
   }
 
-  // Check if user's org matches the platform admin org ID
   if (ctx.clerkOrgId !== env.PLATFORM_ADMIN_CLERK_ORG_ID) {
-    logger.debug(
-      { clerkUserId: ctx.clerkUserId, clerkOrgId: ctx.clerkOrgId, expectedOrgId: env.PLATFORM_ADMIN_CLERK_ORG_ID },
-      'Access denied: platform admin org membership required'
-    );
+    logger.debug({ internalUserId: ctx.internalUserId, internalOrgId: ctx.internalOrgId }, 'Access denied: platform admin org membership required');
     return void reply.code(403).send({ error: 'Forbidden: platform admin access required' });
   }
 }
