@@ -7,6 +7,7 @@ import { requireClerkAuth } from '../auth/middleware.js';
 const summaryQuerySchema = z.object({
   range: z.enum(['24h', '7d', '30d']).default('24h'),
   device_id: z.string().uuid().optional(),
+  user_id: z.string().uuid().optional(),
 });
 
 export async function summaryRoutes(fastify: FastifyInstance) {
@@ -19,18 +20,30 @@ export async function summaryRoutes(fastify: FastifyInstance) {
       });
     }
 
-      const { range, device_id } = queryResult.data;
+    const { range, device_id, user_id } = queryResult.data;
 
-      try {
-        const ctx = request.authContext;
-        if (!ctx) {
-          return reply.code(401).send({ error: 'Unauthorized' });
+    try {
+      const ctx = request.authContext;
+      if (!ctx) {
+        return reply.code(401).send({ error: 'Unauthorized' });
+      }
+
+      // If user_id is provided, allow only self or org admin
+      if (user_id) {
+        const isSelf = user_id === ctx.internalUserId;
+        const isAdmin = ctx.role === 'admin';
+        if (!isSelf && !isAdmin) {
+          return reply.code(403).send({
+            error: 'Not allowed to view this user\'s stats',
+            code: 'FORBIDDEN',
+          });
         }
+      }
 
-        // Get summary (all queries filtered by org_id, optionally by device_id)
-        const summary = await getSummary(ctx.internalOrgId, range, device_id);
+      // Get summary (filtered by org_id, optionally by device_id and/or user_id)
+      const summary = await getSummary(ctx.internalOrgId, range, device_id, user_id);
 
-        return summary;
+      return summary;
     } catch (err) {
       logger.error({ err, range }, 'Failed to get summary');
       return reply.code(500).send({

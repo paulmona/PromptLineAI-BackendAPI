@@ -13,6 +13,7 @@ import { ingestRoutes } from './routes/ingest.js';
 import { summaryRoutes } from './routes/summary.js';
 import { meRoutes } from './routes/me.js';
 import { devicesRoutes } from './routes/devices.js';
+import { usersRoutes } from './routes/users.js';
 import { policyRoutes } from './routes/policy.js';
 import { adminRoutes } from './routes/admin.js';
 import { requireClerkAuth, requireOrgAdmin } from './auth/middleware.js';
@@ -64,6 +65,7 @@ await fastify.register(ingestRoutes);
 await fastify.register(meRoutes);
 await fastify.register(summaryRoutes);
 await fastify.register(devicesRoutes);
+await fastify.register(usersRoutes);
 await fastify.register(policyRoutes);
 
 // Register admin routes (BEFORE /:orgSlug to avoid route conflicts)
@@ -177,6 +179,27 @@ fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/policy', async (request:
 fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/key-generation', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
   const orgSlug = decodeURIComponent(request.params.orgSlug);
   return (reply as any).view('pages/key-generation.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
+  }));
+});
+
+// User detail route (must be before /:orgSlug/users)
+fastify.get<{ Params: { orgSlug: string; userId: string } }>('/:orgSlug/users/:userId', async (request: FastifyRequest<{ Params: { orgSlug: string; userId: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  const userId = decodeURIComponent(request.params.userId);
+  return (reply as any).view('pages/user-detail.njk', getTemplateContext({
+    showUserControls: true,
+    orgSlug,
+    userId,
+    showRangeSelector: true,
+  }));
+});
+
+// Users list route (must be before /:orgSlug)
+fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/users', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
+  const orgSlug = decodeURIComponent(request.params.orgSlug);
+  return (reply as any).view('pages/users.njk', getTemplateContext({
     showUserControls: true,
     orgSlug,
   }));

@@ -166,6 +166,19 @@ export async function ensureUserByExternalUid(args: {
 }
 
 /**
+ * List users in an organization (for Users list page).
+ * Returns id and optional external_uid; only users with org_id set.
+ */
+export async function listUsersByOrgId(orgId: string): Promise<Array<{ id: string; external_uid: string | null }>> {
+  const rows = await db
+    .select({ id: users.id, external_uid: users.externalUid })
+    .from(users)
+    .where(eq(users.orgId, orgId))
+    .orderBy(users.id);
+  return rows.map((r) => ({ id: r.id, external_uid: r.external_uid }));
+}
+
+/**
  * Upsert device. Updates last_seen_at and optionally user_agent.
  * org_id is NEVER updated for existing devices (immutable).
  */
@@ -205,10 +218,17 @@ export async function upsertDevice(
  * Race-safe device upsert guard:
  * - Single statement insert/upsert returning org_id
  * - Caller MUST compare returned org_id against expected org_id and abort if mismatched
+ * - Optional userId: sets devices.user_id so device is associated with the user who sent ingest
  */
 export async function upsertDeviceReturningOrgId(
   dbOrTx: typeof db,
-  args: { deviceId: string; orgId: string; deviceName: string; userAgent?: string | null }
+  args: {
+    deviceId: string;
+    orgId: string;
+    deviceName: string;
+    userAgent?: string | null;
+    userId?: string | null;
+  }
 ): Promise<{ orgId: string }> {
   const rows = await dbOrTx
     .insert(devices)
@@ -219,6 +239,7 @@ export async function upsertDeviceReturningOrgId(
       firstSeenAt: new Date(),
       lastSeenAt: new Date(),
       userAgent: args.userAgent ?? null,
+      userId: args.userId ?? null,
     })
     .onConflictDoUpdate({
       target: devices.id,
@@ -226,6 +247,7 @@ export async function upsertDeviceReturningOrgId(
         lastSeenAt: new Date(),
         deviceName: args.deviceName,
         ...(args.userAgent !== undefined && args.userAgent !== null ? { userAgent: args.userAgent } : {}),
+        ...(args.userId !== undefined ? { userId: args.userId ?? null } : {}),
         // org_id is never updated
       },
     })
@@ -245,6 +267,7 @@ export async function insertEvents(
     id: string;
     orgId: string;
     deviceId: string;
+    userId?: string | null;
     occurredAt: Date;
     tool: 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'unknown';
     eventType: 'visit' | 'prompt_submit' | 'file_selected';
@@ -274,6 +297,7 @@ export async function insertEvents(
           id: e.id,
           orgId: e.orgId,
           deviceId: e.deviceId,
+          userId: e.userId ?? null,
           occurredAt: e.occurredAt,
           tool: e.tool,
           eventType: e.eventType,
@@ -317,10 +341,16 @@ export async function insertEvents(
 
 /**
  * Get summary statistics for an org within a time range.
- * All queries are filtered by org_id, optionally by device_id.
+ * All queries are filtered by org_id, optionally by device_id and/or user_id.
  * When device_id is provided, also returns device_name for display.
+ * When not filtering by user, returns unique_users (distinct user_id, excluding nulls).
  */
-export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', deviceId?: string) {
+export async function getSummary(
+  orgId: string,
+  range: '24h' | '7d' | '30d',
+  deviceId?: string,
+  userId?: string
+) {
   const now = new Date();
   let startTime: Date;
   let bucketFormat: 'hour' | 'day';
@@ -344,6 +374,9 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
   const baseConditions = [eq(events.orgId, orgId), gte(events.occurredAt, startTime)];
   if (deviceId) {
     baseConditions.push(eq(events.deviceId, deviceId));
+  }
+  if (userId) {
+    baseConditions.push(eq(events.userId, userId));
   }
   const whereClause = and(...baseConditions);
 
@@ -376,6 +409,18 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
     uniqueDevices = uniqueDevicesResult[0]?.count ?? 0;
   } else {
     uniqueDevices = 1;
+  }
+
+  // Unique users (only when not filtering by user; count distinct user_id excluding nulls)
+  let uniqueUsers = 0;
+  if (!userId) {
+    const uniqueUsersResult = await db
+      .select({ count: sql<number>`count(distinct ${events.userId})::int` })
+      .from(events)
+      .where(and(whereClause, isNotNull(events.userId)));
+    uniqueUsers = uniqueUsersResult[0]?.count ?? 0;
+  } else {
+    uniqueUsers = 1;
   }
 
   // Tools count
@@ -437,15 +482,18 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
     range: string;
     total_events: number;
     unique_devices: number;
+    unique_users: number;
     tools: Array<{ tool: string; count: number }>;
     event_types: Array<{ event_type: string; count: number }>;
     time_buckets: Array<{ bucket: string; count: number }>;
     files: Array<{ file_name: string; count: number }>;
     device_name?: string;
+    user_id?: string;
   } = {
     range,
     total_events: totalEvents,
     unique_devices: uniqueDevices,
+    unique_users: uniqueUsers,
     tools: toolsResult.map((r) => ({ tool: r.tool, count: r.count })),
     event_types: eventTypesResult.map((r) => ({ event_type: r.eventType, count: r.count })),
     time_buckets: timeBucketsResult.map((r) => ({ bucket: r.bucket, count: r.count })),
@@ -454,6 +502,9 @@ export async function getSummary(orgId: string, range: '24h' | '7d' | '30d', dev
 
   if (deviceName) {
     result.device_name = deviceName;
+  }
+  if (userId) {
+    result.user_id = userId;
   }
 
   return result;

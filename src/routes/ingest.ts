@@ -89,13 +89,14 @@ export async function ingestRoutes(fastify: FastifyInstance) {
           orgId: resolvedOrgId,
           deviceName: device_name,
           userAgent,
+          userId: authContext.internalUserId ?? null,
         });
 
         if (deviceRow.orgId !== resolvedOrgId) {
           throw new DeviceOrgMismatchError(device_id, resolvedOrgId, deviceRow.orgId);
         }
 
-        // Prepare events for insertion (tenant derived from Clerk auth context)
+        // Prepare events for insertion (tenant and user derived from Clerk auth context)
         const eventData = events.map((event) => {
           const { known, extra } = separateEventFields(event);
 
@@ -103,6 +104,7 @@ export async function ingestRoutes(fastify: FastifyInstance) {
             id: known.id,
             orgId: resolvedOrgId,
             deviceId: device_id,
+            userId: authContext.internalUserId ?? null,
             occurredAt: new Date(known.ts),
             tool: known.tool,
             eventType: known.event_type,

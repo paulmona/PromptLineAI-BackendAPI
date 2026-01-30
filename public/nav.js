@@ -16,7 +16,7 @@
     });
 
     // Close menu when clicking nav links (except Account, Settings toggle, Key Generation, Users, Policy, and Logout which have special handlers)
-    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-settings-toggle):not(#nav-key-generation-link):not(#nav-users-link):not(#nav-policy-link):not(#nav-logout-link)');
+    const navLinks = navWrapper.querySelectorAll('.nav-links a:not(#nav-account-link):not(#nav-settings-toggle):not(#nav-key-generation-link):not(#nav-org-profile-link):not(#nav-policy-link):not(#nav-logout-link)');
     navLinks.forEach(link => {
       link.addEventListener('click', function() {
         navWrapper.classList.remove('menu-open');
@@ -62,10 +62,10 @@
       });
     }
 
-    // Handle Users link click (opens Clerk organization profile)
-    const usersLink = navWrapper.querySelector('#nav-users-link');
-    if (usersLink) {
-      usersLink.addEventListener('click', async function(e) {
+    // Handle Org profile link click (opens Clerk organization profile)
+    const orgProfileLink = navWrapper.querySelector('#nav-org-profile-link');
+    if (orgProfileLink) {
+      orgProfileLink.addEventListener('click', async function(e) {
         e.preventDefault();
         navWrapper.classList.remove('menu-open');
         try {
@@ -82,7 +82,7 @@
             console.error('Clerk organization profile not available');
           }
         } catch (err) {
-          console.error('Users error:', err);
+          console.error('Org profile error:', err);
         }
       });
     }

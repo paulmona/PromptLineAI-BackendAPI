@@ -71,8 +71,8 @@ async function initAuthAndLoad() {
 
     orgSlug = canonicalSlug;
 
-    // Make Unique Devices card clickable
-    setupUniqueDevicesClick();
+    // Make Unique Users card clickable
+    setupUniqueUsersClick();
 
     hideAuthBanner();
     loadSummary(currentRange);
@@ -160,7 +160,7 @@ function setLoadingState(loading) {
 
   if (loading) {
     document.getElementById('total-events').textContent = 'Loading...';
-    document.getElementById('unique-devices').textContent = 'Loading...';
+    document.getElementById('unique-users').textContent = 'Loading...';
     document.querySelector('#tools-table tbody').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
     document.querySelector('#event-types-table tbody').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
     document.querySelector('#files-table tbody').innerHTML = '<tr><td colspan="2">Loading...</td></tr>';
@@ -198,12 +198,12 @@ function hideAuthBanner() {
   document.getElementById('dashboard-content').style.display = '';
 }
 
-function setupUniqueDevicesClick() {
-  const uniqueDevicesCard = document.querySelector('.summary-cards .card:nth-child(2)');
-  if (uniqueDevicesCard && orgSlug) {
-    uniqueDevicesCard.classList.add('clickable');
-    uniqueDevicesCard.addEventListener('click', () => {
-      window.location.href = `/${encodeURIComponent(orgSlug)}/devices`;
+function setupUniqueUsersClick() {
+  const uniqueUsersCard = document.querySelector('.summary-cards .card:nth-child(2)');
+  if (uniqueUsersCard && orgSlug) {
+    uniqueUsersCard.classList.add('clickable');
+    uniqueUsersCard.addEventListener('click', () => {
+      window.location.href = `/${encodeURIComponent(orgSlug)}/users`;
     });
   }
 }
@@ -211,7 +211,7 @@ function setupUniqueDevicesClick() {
 function renderDashboard(data) {
   // Summary cards
   document.getElementById('total-events').textContent = data.total_events.toLocaleString();
-  document.getElementById('unique-devices').textContent = data.unique_devices.toLocaleString();
+  document.getElementById('unique-users').textContent = data.unique_users.toLocaleString();
 
   // Tools breakdown
   renderTools(data.tools);

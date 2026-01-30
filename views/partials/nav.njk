@@ -8,6 +8,7 @@
     {% elif orgSlug %}
     {# Regular org pages: Show full menu #}
     <li><a href="/{{ orgSlug }}">Dashboard</a></li>
+    <li><a href="/{{ orgSlug }}/users">Users</a></li>
     <li><a href="/{{ orgSlug }}/devices">Devices</a></li>
     {% if showUserControls %}
     <li class="nav-separator"></li>
@@ -16,7 +17,7 @@
       <button id="nav-settings-toggle" class="nav-settings-toggle" type="button">Settings</button>
       <ul class="nav-settings-submenu is-collapsed">
         <li><a href="/{{ orgSlug }}/key-generation" id="nav-key-generation-link" class="nav-key-generation-link">Key Generation</a></li>
-        <li><a href="#" id="nav-users-link" class="nav-users-link">Users</a></li>
+        <li><a href="#" id="nav-org-profile-link" class="nav-org-profile-link">Org profile</a></li>
         <li><a href="/{{ orgSlug }}/policy" id="nav-policy-link" class="nav-policy-link">Policy</a></li>
       </ul>
     </li>
