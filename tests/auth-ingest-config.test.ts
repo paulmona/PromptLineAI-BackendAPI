@@ -5,6 +5,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import { randomUUID } from 'crypto';
+
+// Mock env to avoid process.exit on missing env vars - must be before route imports
+vi.mock('../src/env.js', () => ({
+  default: {
+    PORT: 8787,
+    CLERK_PUBLISHABLE_KEY: 'test_pk',
+    CLERK_SECRET_KEY: 'test_sk',
+    CLERK_FAPI_URL: 'https://test.clerk.accounts.dev',
+    INGEST_KEY_PEPPER: 'test_pepper_that_is_at_least_32_chars_long',
+    PLATFORM_ADMIN_CLERK_ORG_ID: 'org_test',
+    DB_HOST: 'localhost',
+    DB_PORT: 5432,
+    DB_NAME: 'testdb',
+    DB_USER: 'testuser',
+    DB_PASSWORD: 'testpass',
+    DATABASE_URL: 'postgres://testuser:testpass@localhost:5432/testdb',
+  },
+}));
+
+// Mock db module to prevent actual database connections
+vi.mock('../src/db/index.js', () => ({
+  db: {},
+  checkDatabaseConnection: vi.fn().mockResolvedValue(true),
+  closeDatabase: vi.fn(),
+}));
+
 import { ingestRoutes } from '../src/routes/ingest.js';
 import { policyRoutes } from '../src/routes/policy.js';
 import { OrgMismatchForUserError } from '../src/db/queries.js';
