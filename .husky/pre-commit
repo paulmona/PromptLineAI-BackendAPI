@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Run type check on entire project (fast, catches type errors across files)
+echo "Running type check..."
+pnpm run typecheck || exit 1
+
+# Run tests related to staged files
+echo "Running related tests..."
+pnpm exec lint-staged || exit 1
+
+echo "Pre-commit checks passed!"
