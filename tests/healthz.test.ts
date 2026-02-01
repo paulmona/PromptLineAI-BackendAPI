@@ -2,8 +2,9 @@
  * Tests for GET /healthz endpoint.
  * Tests both connected and disconnected database scenarios.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import Fastify from 'fastify';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { mockEnv } from './helpers/setup.js';
 
 const mockCheckDatabaseConnection = vi.fn();
 
@@ -16,39 +17,27 @@ vi.mock('../src/db/index.js', () => ({
 
 // Mock env to avoid process.exit on missing env vars
 vi.mock('../src/env.js', () => ({
-  default: {
-    PORT: 8787,
-    CLERK_PUBLISHABLE_KEY: 'test_pk',
-    CLERK_SECRET_KEY: 'test_sk',
-    CLERK_FAPI_URL: 'https://test.clerk.accounts.dev',
-    INGEST_KEY_PEPPER: 'test_pepper_that_is_at_least_32_chars_long',
-    PLATFORM_ADMIN_CLERK_ORG_ID: 'org_test',
-    DB_HOST: 'localhost',
-    DB_PORT: 5432,
-    DB_NAME: 'testdb',
-    DB_USER: 'testuser',
-    DB_PASSWORD: 'testpass',
-    DATABASE_URL: 'postgres://testuser:testpass@localhost:5432/testdb',
-  },
+  default: mockEnv,
 }));
 
 import { healthzRoutes } from '../src/routes/healthz.js';
 
-async function buildTestApp() {
-  const app = Fastify();
-  await app.register(healthzRoutes);
-  return app;
-}
-
 describe('GET /healthz', () => {
-  beforeEach(() => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
+    app = Fastify();
+    await app.register(healthzRoutes);
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   it('returns ok:true and db:connected when database is connected', async () => {
     mockCheckDatabaseConnection.mockResolvedValueOnce(true);
 
-    const app = await buildTestApp();
     const res = await app.inject({
       method: 'GET',
       url: '/healthz',
@@ -61,13 +50,11 @@ describe('GET /healthz', () => {
       db: 'connected',
     });
     expect(mockCheckDatabaseConnection).toHaveBeenCalledOnce();
-    await app.close();
   });
 
   it('returns ok:true and db:disconnected when database is disconnected', async () => {
     mockCheckDatabaseConnection.mockResolvedValueOnce(false);
 
-    const app = await buildTestApp();
     const res = await app.inject({
       method: 'GET',
       url: '/healthz',
@@ -80,22 +67,17 @@ describe('GET /healthz', () => {
       db: 'disconnected',
     });
     expect(mockCheckDatabaseConnection).toHaveBeenCalledOnce();
-    await app.close();
   });
 
-  it('returns ok:true and db:disconnected when checkDatabaseConnection throws', async () => {
+  it('returns 500 when checkDatabaseConnection throws unexpectedly', async () => {
     mockCheckDatabaseConnection.mockRejectedValueOnce(new Error('Connection refused'));
 
-    const app = await buildTestApp();
     const res = await app.inject({
       method: 'GET',
       url: '/healthz',
     });
 
-    // The route should handle errors gracefully - let's verify the behavior
-    // Based on the implementation, if checkDatabaseConnection throws, it returns false
-    // But if the error propagates, we'd get a 500
+    // Unhandled exception in route handler results in 500
     expect(res.statusCode).toBe(500);
-    await app.close();
   });
 });
