@@ -7,7 +7,6 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { mockEnv, createMockOrg } from './helpers/setup.js';
 import { testUsers, createBearerToken } from './helpers/auth.js';
-import { recordEndpointTest } from './helpers/coverage.js';
 
 // Mock env before importing routes
 vi.mock('../src/env.js', () => ({
@@ -125,8 +124,6 @@ describe('GET /me', () => {
 
   describe('authentication', () => {
     it('returns 401 when Authorization header is missing', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 401 when Authorization header is missing');
-
       const res = await app.inject({
         method: 'GET',
         url: '/me',
@@ -138,8 +135,6 @@ describe('GET /me', () => {
     });
 
     it('returns 401 when Bearer token is invalid', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 401 when Bearer token is invalid');
-
       mockVerifyToken.mockRejectedValueOnce(new Error('Token verification failed'));
 
       const res = await app.inject({
@@ -152,8 +147,6 @@ describe('GET /me', () => {
     });
 
     it('returns 403 when user has no org membership', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 403 when user has no org membership');
-
       const token = createBearerToken('user_no_org');
 
       mockVerifyToken.mockResolvedValueOnce({
@@ -177,8 +170,6 @@ describe('GET /me', () => {
 
   describe('success cases', () => {
     it('returns 200 with user and org when authenticated', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 200 with user and org when authenticated');
-
       // setupSuccessfulAuth now mocks both middleware and route handler calls
       const { token, user } = setupSuccessfulAuth();
 
@@ -197,8 +188,6 @@ describe('GET /me', () => {
     });
 
     it('returns org details with correct structure', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns org details with correct structure');
-
       // setupSuccessfulAuth now mocks both middleware and route handler calls
       const { token } = setupSuccessfulAuth();
 
@@ -221,8 +210,6 @@ describe('GET /me', () => {
 
   describe('edge cases', () => {
     it('returns 403 when org has no slug', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 403 when org has no slug');
-
       // Use routeOrgResponse to simulate org without slug in route handler response
       const orgWithoutSlug = {
         id: randomUUID(),
@@ -246,8 +233,6 @@ describe('GET /me', () => {
     });
 
     it('returns 403 when org not found', async () => {
-      recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 403 when org not found');
-
       // Use routeOrgResponse=null to simulate org not found in route handler
       const { token } = setupSuccessfulAuth(testUsers.regularMember, null);
 

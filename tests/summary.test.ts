@@ -7,7 +7,6 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { mockEnv, createMockOrg, createMockSummaryResponse } from './helpers/setup.js';
 import { testUsers, createBearerToken } from './helpers/auth.js';
-import { recordEndpointTest } from './helpers/coverage.js';
 
 // Mock env before importing routes
 vi.mock('../src/env.js', () => ({
@@ -104,8 +103,6 @@ describe('GET /summary', () => {
 
   describe('authentication', () => {
     it('returns 401 when Authorization header is missing', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 401 when Authorization header is missing');
-
       const res = await app.inject({
         method: 'GET',
         url: '/summary',
@@ -117,8 +114,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 401 when Bearer token is invalid', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 401 when Bearer token is invalid');
-
       mockVerifyToken.mockRejectedValueOnce(new Error('Token verification failed'));
 
       const res = await app.inject({
@@ -131,8 +126,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 403 when user has no org membership', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 403 when user has no org membership');
-
       const token = createBearerToken('user_no_org');
 
       mockVerifyToken.mockResolvedValueOnce({
@@ -156,8 +149,6 @@ describe('GET /summary', () => {
 
   describe('range parameter', () => {
     it('returns 200 with default range (24h) when no range specified', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 200 with default range (24h)');
-
       const { token, user } = setupSuccessfulAuth();
       const summaryData = createMockSummaryResponse({ range: '24h' });
       mockGetSummary.mockResolvedValueOnce(summaryData);
@@ -175,8 +166,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 200 with range=7d', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 200 with range=7d');
-
       const { token, user } = setupSuccessfulAuth();
       const summaryData = createMockSummaryResponse({ range: '7d' });
       mockGetSummary.mockResolvedValueOnce(summaryData);
@@ -194,8 +183,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 200 with range=30d', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 200 with range=30d');
-
       const { token, user } = setupSuccessfulAuth();
       const summaryData = createMockSummaryResponse({ range: '30d' });
       mockGetSummary.mockResolvedValueOnce(summaryData);
@@ -213,8 +200,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 400 for invalid range parameter', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 400 for invalid range parameter');
-
       const { token } = setupSuccessfulAuth();
 
       const res = await app.inject({
@@ -231,8 +216,6 @@ describe('GET /summary', () => {
 
   describe('user_id filtering', () => {
     it('returns 200 when user requests their own stats', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 200 when user requests their own stats');
-
       const { token, user } = setupSuccessfulAuth();
       const summaryData = createMockSummaryResponse({ range: '24h' });
       mockGetSummary.mockResolvedValueOnce(summaryData);
@@ -248,8 +231,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 403 when non-admin requests another user stats', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 403 when non-admin requests another user stats');
-
       // Explicitly use 'member' role to ensure this is a non-admin
       const { token } = setupSuccessfulAuth(testUsers.regularMember, 'member');
       const otherUserId = randomUUID();
@@ -266,8 +247,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 200 when admin requests another user stats', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 200 when admin requests another user stats');
-
       // Setup as org admin - this should allow viewing other users' stats
       const { token, user } = setupSuccessfulAuth(testUsers.orgAdmin, 'admin');
       const otherUserId = randomUUID();
@@ -286,8 +265,6 @@ describe('GET /summary', () => {
     });
 
     it('returns 400 when user_id is not a valid UUID', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 400 when user_id is not a valid UUID');
-
       const { token } = setupSuccessfulAuth();
 
       const res = await app.inject({
@@ -304,8 +281,6 @@ describe('GET /summary', () => {
 
   describe('response structure', () => {
     it('returns summary with correct structure', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns summary with correct structure');
-
       const { token } = setupSuccessfulAuth();
       const summaryData = createMockSummaryResponse();
       mockGetSummary.mockResolvedValueOnce(summaryData);
@@ -337,8 +312,6 @@ describe('GET /summary', () => {
 
   describe('error handling', () => {
     it('returns 500 when database query fails', async () => {
-      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 500 when database query fails');
-
       const { token } = setupSuccessfulAuth();
       mockGetSummary.mockRejectedValueOnce(new Error('Database connection lost'));
 

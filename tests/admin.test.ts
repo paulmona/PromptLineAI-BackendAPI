@@ -7,7 +7,6 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
 import { mockEnv, createMockOrg, createMockOrgListResponse, createMockOrgDetail } from './helpers/setup.js';
 import { testUsers, createBearerToken } from './helpers/auth.js';
-import { recordEndpointTest } from './helpers/coverage.js';
 
 // Mock env before importing routes
 vi.mock('../src/env.js', () => ({
@@ -155,8 +154,6 @@ describe('Admin endpoints', () => {
 
   describe('GET /admin/orgs', () => {
     it('returns 401 when Authorization header is missing', async () => {
-      recordEndpointTest('GET', '/admin/orgs', 'admin.test.ts', 'returns 401 when Authorization header is missing');
-
       const res = await app.inject({
         method: 'GET',
         url: '/admin/orgs',
@@ -168,8 +165,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 403 when user is not platform admin', async () => {
-      recordEndpointTest('GET', '/admin/orgs', 'admin.test.ts', 'returns 403 when user is not platform admin');
-
       const { token } = setupNonAdminAuth();
 
       const res = await app.inject({
@@ -184,8 +179,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 200 with default pagination', async () => {
-      recordEndpointTest('GET', '/admin/orgs', 'admin.test.ts', 'returns 200 with default pagination');
-
       const { token } = setupPlatformAdminAuth();
       const mockResponse = createMockOrgListResponse();
       mockGetOrgsList.mockResolvedValueOnce(mockResponse);
@@ -205,8 +198,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 200 with custom limit and offset', async () => {
-      recordEndpointTest('GET', '/admin/orgs', 'admin.test.ts', 'returns 200 with custom limit and offset');
-
       const { token } = setupPlatformAdminAuth();
       const mockResponse = createMockOrgListResponse({ limit: 10, offset: 20 });
       mockGetOrgsList.mockResolvedValueOnce(mockResponse);
@@ -222,8 +213,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 400 for invalid query parameters', async () => {
-      recordEndpointTest('GET', '/admin/orgs', 'admin.test.ts', 'returns 400 for invalid query parameters');
-
       const { token } = setupPlatformAdminAuth();
 
       const res = await app.inject({
@@ -238,8 +227,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 500 when database query fails', async () => {
-      recordEndpointTest('GET', '/admin/orgs', 'admin.test.ts', 'returns 500 when database query fails');
-
       const { token } = setupPlatformAdminAuth();
       mockGetOrgsList.mockRejectedValueOnce(new Error('Database error'));
 
@@ -257,8 +244,6 @@ describe('Admin endpoints', () => {
 
   describe('GET /admin/orgs/:orgId', () => {
     it('returns 200 with org detail', async () => {
-      recordEndpointTest('GET', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 200 with org detail');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       const mockOrg = createMockOrgDetail({ id: orgId });
@@ -278,8 +263,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 404 when org not found', async () => {
-      recordEndpointTest('GET', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 404 when org not found');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       mockGetOrgDetail.mockResolvedValueOnce(null);
@@ -296,8 +279,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 500 when database query fails', async () => {
-      recordEndpointTest('GET', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 500 when database query fails');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       mockGetOrgDetail.mockRejectedValueOnce(new Error('Connection lost'));
@@ -316,8 +297,6 @@ describe('Admin endpoints', () => {
 
   describe('POST /admin/orgs/:orgId/revoke-ingest-keys', () => {
     it('returns 200 with revoked count', async () => {
-      recordEndpointTest('POST', '/admin/orgs/{orgId}/revoke-ingest-keys', 'admin.test.ts', 'returns 200 with revoked count');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       const mockOrg = createMockOrgDetail({ id: orgId });
@@ -336,8 +315,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 404 when org not found', async () => {
-      recordEndpointTest('POST', '/admin/orgs/{orgId}/revoke-ingest-keys', 'admin.test.ts', 'returns 404 when org not found');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       mockGetOrgDetail.mockResolvedValueOnce(null);
@@ -354,8 +331,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 500 when database operation fails', async () => {
-      recordEndpointTest('POST', '/admin/orgs/{orgId}/revoke-ingest-keys', 'admin.test.ts', 'returns 500 when database operation fails');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       const mockOrg = createMockOrgDetail({ id: orgId });
@@ -376,8 +351,6 @@ describe('Admin endpoints', () => {
 
   describe('DELETE /admin/orgs/:orgId', () => {
     it('returns 400 when X-ADMIN-CONFIRM header is missing', async () => {
-      recordEndpointTest('DELETE', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 400 when X-ADMIN-CONFIRM header is missing');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
 
@@ -394,8 +367,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 400 when X-ADMIN-CONFIRM header has wrong value', async () => {
-      recordEndpointTest('DELETE', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 400 when X-ADMIN-CONFIRM header has wrong value');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
 
@@ -414,8 +385,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 404 when org not found', async () => {
-      recordEndpointTest('DELETE', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 404 when org not found');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
 
@@ -437,8 +406,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 204 on successful deletion', async () => {
-      recordEndpointTest('DELETE', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 204 on successful deletion');
-
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
       const externalOrgId = `org_${randomUUID().substring(0, 8)}`;
@@ -472,8 +439,6 @@ describe('Admin endpoints', () => {
     });
 
     it('returns 403 when user is not platform admin', async () => {
-      recordEndpointTest('DELETE', '/admin/orgs/{orgId}', 'admin.test.ts', 'returns 403 when user is not platform admin');
-
       const { token } = setupNonAdminAuth();
       const orgId = randomUUID();
 
