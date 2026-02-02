@@ -64,7 +64,21 @@ async function buildTestApp(): Promise<FastifyInstance> {
   return app;
 }
 
-function setupSuccessfulAuth(user = testUsers.regularMember) {
+/**
+ * Sets up mocks for successful authentication.
+ *
+ * IMPORTANT: getOrgByExternalOrgId is called TWICE:
+ * 1. First call: by requireClerkAuth middleware (to populate authContext)
+ * 2. Second call: by the /me route handler (to get fresh org data)
+ *
+ * By default, this function mocks BOTH calls to return the same org.
+ * For edge cases where the route handler should receive different data,
+ * use the `routeOrgResponse` parameter.
+ */
+function setupSuccessfulAuth(
+  user = testUsers.regularMember,
+  routeOrgResponse?: ReturnType<typeof createMockOrg> | null
+) {
   const token = createBearerToken(user.clerkUserId);
   const org = createMockOrg({
     id: user.internalOrgId!,
@@ -77,6 +91,7 @@ function setupSuccessfulAuth(user = testUsers.regularMember) {
     tokenOrgId: user.clerkOrgId,
   });
 
+  // First call: middleware uses this to populate authContext
   mockGetOrgByExternalOrgId.mockResolvedValueOnce(org);
 
   mockEnsureUserByExternalUid.mockResolvedValueOnce({
@@ -87,6 +102,11 @@ function setupSuccessfulAuth(user = testUsers.regularMember) {
   mockGetOrganizationMembershipList.mockResolvedValueOnce({
     data: [{ organization: { id: user.clerkOrgId }, role: 'org:member' }],
   });
+
+  // Second call: route handler uses this to get org details for response
+  // Use routeOrgResponse if provided, otherwise use the same org
+  const routeOrg = routeOrgResponse !== undefined ? routeOrgResponse : org;
+  mockGetOrgByExternalOrgId.mockResolvedValueOnce(routeOrg);
 
   return { user, org, token };
 }
@@ -159,10 +179,8 @@ describe('GET /me', () => {
     it('returns 200 with user and org when authenticated', async () => {
       recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 200 with user and org when authenticated');
 
-      const { org, token, user } = setupSuccessfulAuth();
-
-      // Need to mock getOrgByExternalOrgId again for the route handler
-      mockGetOrgByExternalOrgId.mockResolvedValueOnce(org);
+      // setupSuccessfulAuth now mocks both middleware and route handler calls
+      const { token, user } = setupSuccessfulAuth();
 
       const res = await app.inject({
         method: 'GET',
@@ -181,8 +199,8 @@ describe('GET /me', () => {
     it('returns org details with correct structure', async () => {
       recordEndpointTest('GET', '/me', 'me.test.ts', 'returns org details with correct structure');
 
-      const { org, token } = setupSuccessfulAuth();
-      mockGetOrgByExternalOrgId.mockResolvedValueOnce(org);
+      // setupSuccessfulAuth now mocks both middleware and route handler calls
+      const { token } = setupSuccessfulAuth();
 
       const res = await app.inject({
         method: 'GET',
@@ -205,14 +223,16 @@ describe('GET /me', () => {
     it('returns 403 when org has no slug', async () => {
       recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 403 when org has no slug');
 
-      const { token } = setupSuccessfulAuth();
-
-      // Mock org without slug
-      mockGetOrgByExternalOrgId.mockResolvedValueOnce({
+      // Use routeOrgResponse to simulate org without slug in route handler response
+      const orgWithoutSlug = {
         id: randomUUID(),
         name: 'Test Org',
         slug: null,
-      });
+        externalOrgId: 'org_test',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const { token } = setupSuccessfulAuth(testUsers.regularMember, orgWithoutSlug);
 
       const res = await app.inject({
         method: 'GET',
@@ -228,10 +248,8 @@ describe('GET /me', () => {
     it('returns 403 when org not found', async () => {
       recordEndpointTest('GET', '/me', 'me.test.ts', 'returns 403 when org not found');
 
-      const { token } = setupSuccessfulAuth();
-
-      // Mock org not found
-      mockGetOrgByExternalOrgId.mockResolvedValueOnce(null);
+      // Use routeOrgResponse=null to simulate org not found in route handler
+      const { token } = setupSuccessfulAuth(testUsers.regularMember, null);
 
       const res = await app.inject({
         method: 'GET',
