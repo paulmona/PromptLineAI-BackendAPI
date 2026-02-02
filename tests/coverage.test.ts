@@ -40,14 +40,25 @@ describe('API Coverage', () => {
     console.log(`\n  Coverage tracking configured for ${coverageEndpoints.length} endpoints`);
     console.log(`  OpenAPI spec defines ${specEndpoints.length} endpoints`);
 
-    // Log any differences
+    // Check for mismatches and fail if any exist
     const specSet = new Set(specEndpoints.map(e => `${e.method} ${e.path}`));
     const coverageSet = new Set(coverageEndpoints.map(e => `${e.method} ${e.path}`));
 
     const missingFromCoverage = [...specSet].filter(e => !coverageSet.has(e));
+    const extraInCoverage = [...coverageSet].filter(e => !specSet.has(e));
+
+    // Build error message if there are mismatches
+    const errors: string[] = [];
     if (missingFromCoverage.length > 0) {
-      console.log('  Missing from coverage tracking:');
-      missingFromCoverage.forEach(e => console.log(`    - ${e}`));
+      errors.push('Missing from coverage tracking (add to helpers/coverage.ts):');
+      missingFromCoverage.forEach(e => errors.push(`  - ${e}`));
     }
+    if (extraInCoverage.length > 0) {
+      errors.push('Extra in coverage tracking (remove from helpers/coverage.ts or add to OpenAPI spec):');
+      extraInCoverage.forEach(e => errors.push(`  - ${e}`));
+    }
+
+    // Fail the test if there are mismatches
+    expect(errors.length, errors.join('\n')).toBe(0);
   });
 });

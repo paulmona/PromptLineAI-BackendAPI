@@ -103,6 +103,64 @@ function resolveRef(ref: string, spec: OpenAPISpec): unknown {
 }
 
 /**
+ * Normalize a request path to match OpenAPI spec paths.
+ * Replaces dynamic segments (UUIDs, numeric IDs) with their parameter names from the spec.
+ *
+ * Example: /admin/orgs/abc-123-uuid -> /admin/orgs/{orgId}
+ */
+function normalizePathToSpec(requestPath: string, spec: OpenAPISpec): string | null {
+  // First check if it's an exact match
+  if (spec.paths[requestPath]) {
+    return requestPath;
+  }
+
+  // UUID pattern for dynamic segments
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const numericPattern = /^\d+$/;
+
+  const requestSegments = requestPath.split('/');
+
+  // Try to match against each spec path
+  for (const specPath of Object.keys(spec.paths)) {
+    const specSegments = specPath.split('/');
+
+    // Must have same number of segments
+    if (specSegments.length !== requestSegments.length) {
+      continue;
+    }
+
+    // Check if all segments match
+    let isMatch = true;
+    for (let i = 0; i < specSegments.length; i++) {
+      const specSeg = specSegments[i];
+      const reqSeg = requestSegments[i];
+
+      // Exact match
+      if (specSeg === reqSeg) {
+        continue;
+      }
+
+      // Path parameter match (e.g., {orgId} matches a UUID or numeric ID)
+      if (specSeg.startsWith('{') && specSeg.endsWith('}')) {
+        if (uuidPattern.test(reqSeg) || numericPattern.test(reqSeg)) {
+          continue;
+        }
+      }
+
+      // No match
+      isMatch = false;
+      break;
+    }
+
+    if (isMatch) {
+      return specPath;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Get the response schema for a given endpoint and status code.
  */
 export function getResponseSchema(
@@ -112,11 +170,11 @@ export function getResponseSchema(
 ): unknown | null {
   const spec = loadOpenAPISpec();
 
-  // Normalize path (convert {param} to OpenAPI format)
-  const normalizedPath = path.replace(
-    /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
-    '/{orgId}'
-  );
+  // Normalize path to match OpenAPI spec format
+  const normalizedPath = normalizePathToSpec(path, spec);
+  if (!normalizedPath) {
+    return null;
+  }
 
   const pathSpec = spec.paths[normalizedPath];
   if (!pathSpec) {
