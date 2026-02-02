@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
-import { mockEnv, createMockOrg, createMockOrgListResponse, createMockOrgDetail, createMockRevokeKeysResponse } from './helpers/setup.js';
+import { mockEnv, createMockOrg, createMockOrgListResponse, createMockOrgDetail } from './helpers/setup.js';
 import { testUsers, createBearerToken } from './helpers/auth.js';
 import { recordEndpointTest } from './helpers/coverage.js';
 
@@ -14,18 +14,21 @@ vi.mock('../src/env.js', () => ({
   default: mockEnv,
 }));
 
-// Mock db module
+// Mock db module - configurable mocks for DELETE tests
+const mockDbSelectResult = vi.fn<[], Promise<Array<{ id: string; externalOrgId: string }>>>();
+const mockDbTransaction = vi.fn();
+
 vi.mock('../src/db/index.js', () => ({
   db: {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-    delete: vi.fn().mockReturnThis(),
-    transaction: vi.fn().mockImplementation(async (fn) => fn({
-      delete: vi.fn().mockReturnThis(),
-      where: vi.fn().mockResolvedValue(undefined),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => mockDbSelectResult()),
+        })),
+      })),
     })),
+    delete: vi.fn().mockReturnThis(),
+    transaction: (fn: (tx: unknown) => Promise<void>) => mockDbTransaction(fn),
   },
   checkDatabaseConnection: vi.fn().mockResolvedValue(true),
   closeDatabase: vi.fn(),
@@ -416,15 +419,8 @@ describe('Admin endpoints', () => {
       const { token } = setupPlatformAdminAuth();
       const orgId = randomUUID();
 
-      // Mock the db.select chain to return empty array (org not found)
-      const mockDb = await import('../src/db/index.js');
-      vi.mocked(mockDb.db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      } as any);
+      // Configure mock to return empty array (org not found)
+      mockDbSelectResult.mockResolvedValueOnce([]);
 
       const res = await app.inject({
         method: 'DELETE',
@@ -447,23 +443,16 @@ describe('Admin endpoints', () => {
       const orgId = randomUUID();
       const externalOrgId = `org_${randomUUID().substring(0, 8)}`;
 
-      // Mock the db.select chain to return the org
-      const mockDb = await import('../src/db/index.js');
-      vi.mocked(mockDb.db.select).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: orgId, externalOrgId }]),
-          }),
-        }),
-      } as any);
+      // Configure mock to return the org
+      mockDbSelectResult.mockResolvedValueOnce([{ id: orgId, externalOrgId }]);
 
-      // Mock transaction
-      vi.mocked(mockDb.db.transaction).mockImplementation(async (fn) => {
-        return fn({
+      // Configure transaction mock to execute the callback
+      mockDbTransaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<void>) => {
+        await fn({
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue(undefined),
           }),
-        } as any);
+        });
       });
 
       // Mock Clerk organization lookup and deletion
