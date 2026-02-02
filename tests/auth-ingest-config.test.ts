@@ -28,9 +28,10 @@ vi.mock('../src/db/index.js', () => ({
   closeDatabase: vi.fn(),
 }));
 
-// Mock rate limiter to always allow
+// Mock rate limiter - configurable per test
+const mockCheckRateLimit = vi.fn().mockReturnValue({ allowed: true });
 vi.mock('../src/auth/ingest-rate-limit.js', () => ({
-  checkRateLimit: vi.fn().mockReturnValue({ allowed: true }),
+  checkRateLimit: (args: unknown) => mockCheckRateLimit(args),
 }));
 
 import { ingestRoutes } from '../src/routes/ingest.js';
@@ -531,5 +532,87 @@ describe('database failure handling', () => {
     const body = res.json();
     expect(body).toHaveProperty('llms');
     expect(body).toHaveProperty('fileUpload');
+  });
+});
+
+// ==================== RATE LIMITING TESTS ====================
+
+describe('rate limiting', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    // Reset rate limiter to allow by default
+    mockCheckRateLimit.mockReturnValue({ allowed: true });
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('returns 429 when rate limit is exceeded on /ingest', async () => {
+    setupSuccessfulAuth();
+    const payload = createValidIngestPayload();
+
+    // Configure rate limiter to deny the request
+    mockCheckRateLimit.mockReturnValueOnce({
+      allowed: false,
+      retryAfterSeconds: 30,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      headers: { authorization: 'Bearer valid-token' },
+      payload,
+    });
+
+    expect(res.statusCode).toBe(429);
+    const body = res.json() as { error: string };
+    expect(body.error).toBe('Too Many Requests');
+    expect(res.headers['retry-after']).toBe('30');
+  });
+
+  it('passes correct identifier to rate limiter', async () => {
+    const { user, org } = setupSuccessfulAuth();
+    const payload = createValidIngestPayload();
+
+    mockUpsertDeviceReturningOrgId.mockResolvedValueOnce({ orgId: org.id });
+    mockInsertEvents.mockResolvedValueOnce({ attempted: 1, inserted: 1 });
+
+    await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      headers: { authorization: 'Bearer valid-token' },
+      payload,
+    });
+
+    // Verify rate limiter was called with org-based identifier
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identifier: `org:${org.id}`,
+      })
+    );
+  });
+
+  it('allows request when rate limit not exceeded', async () => {
+    const { org } = setupSuccessfulAuth();
+    const payload = createValidIngestPayload();
+
+    // Rate limiter allows the request
+    mockCheckRateLimit.mockReturnValueOnce({ allowed: true });
+    mockUpsertDeviceReturningOrgId.mockResolvedValueOnce({ orgId: org.id });
+    mockInsertEvents.mockResolvedValueOnce({ attempted: 1, inserted: 1 });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      headers: { authorization: 'Bearer valid-token' },
+      payload,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['retry-after']).toBeUndefined();
   });
 });
