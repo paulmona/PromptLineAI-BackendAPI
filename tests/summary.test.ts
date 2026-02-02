@@ -250,7 +250,8 @@ describe('GET /summary', () => {
     it('returns 403 when non-admin requests another user stats', async () => {
       recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 403 when non-admin requests another user stats');
 
-      const { token } = setupSuccessfulAuth();
+      // Explicitly use 'member' role to ensure this is a non-admin
+      const { token } = setupSuccessfulAuth(testUsers.regularMember, 'member');
       const otherUserId = randomUUID();
 
       const res = await app.inject({
@@ -262,6 +263,26 @@ describe('GET /summary', () => {
       expect(res.statusCode).toBe(403);
       const body = res.json();
       expect(body.code).toBe('FORBIDDEN');
+    });
+
+    it('returns 200 when admin requests another user stats', async () => {
+      recordEndpointTest('GET', '/summary', 'summary.test.ts', 'returns 200 when admin requests another user stats');
+
+      // Setup as org admin - this should allow viewing other users' stats
+      const { token, user } = setupSuccessfulAuth(testUsers.orgAdmin, 'admin');
+      const otherUserId = randomUUID();
+      const summaryData = createMockSummaryResponse({ range: '24h' });
+      mockGetSummary.mockResolvedValueOnce(summaryData);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/summary?user_id=${otherUserId}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      // Verify getSummary was called with the other user's ID
+      expect(mockGetSummary).toHaveBeenCalledWith(user.internalOrgId, '24h', otherUserId);
     });
 
     it('returns 400 when user_id is not a valid UUID', async () => {
