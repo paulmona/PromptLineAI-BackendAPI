@@ -123,3 +123,131 @@ export function createMockPolicyConfig(overrides: Partial<{
     fileUpload: overrides.fileUpload ?? { logFileNames: true },
   };
 }
+
+/**
+ * Creates a mock /me response.
+ */
+export function createMockMeResponse(overrides: Partial<{
+  user: { id: string };
+  org: { id: string; name: string; slug: string };
+}> = {}) {
+  return {
+    user: overrides.user ?? { id: randomUUID() },
+    org: overrides.org ?? {
+      id: randomUUID(),
+      name: 'Test Organization',
+      slug: 'test-org',
+    },
+  };
+}
+
+/**
+ * Creates a mock summary response.
+ */
+export function createMockSummaryResponse(overrides: Partial<{
+  range: '24h' | '7d' | '30d';
+  total_events: number;
+  unique_users: number;
+  tools: Array<{ tool: string; count: number }>;
+  event_types: Array<{ event_type: string; count: number }>;
+  time_buckets: Array<{ bucket: string; count: number }>;
+  files: Array<{ file_name: string; count: number }>;
+}> = {}) {
+  return {
+    range: overrides.range ?? '24h',
+    total_events: overrides.total_events ?? 100,
+    unique_users: overrides.unique_users ?? 5,
+    tools: overrides.tools ?? [
+      { tool: 'chatgpt', count: 60 },
+      { tool: 'claude', count: 40 },
+    ],
+    event_types: overrides.event_types ?? [
+      { event_type: 'visit', count: 50 },
+      { event_type: 'prompt_submit', count: 50 },
+    ],
+    time_buckets: overrides.time_buckets ?? [
+      { bucket: '2026-01-16 17:00:00+00', count: 25 },
+      { bucket: '2026-01-16 18:00:00+00', count: 25 },
+    ],
+    files: overrides.files ?? [],
+  };
+}
+
+/**
+ * Creates a mock org list item for /admin/orgs response.
+ */
+export function createMockOrgListItem(overrides: Partial<{
+  id: string;
+  name: string;
+  slug: string | null;
+  external_org_id: string | null;
+  created_at: string;
+  counts: {
+    users_count: number;
+    events_count: number;
+    ingest_keys_count: number;
+  };
+}> = {}) {
+  return {
+    id: overrides.id ?? randomUUID(),
+    name: overrides.name ?? 'Test Organization',
+    slug: overrides.slug ?? 'test-org',
+    external_org_id: overrides.external_org_id ?? `org_${randomUUID().substring(0, 8)}`,
+    created_at: overrides.created_at ?? new Date().toISOString(),
+    counts: overrides.counts ?? {
+      users_count: 5,
+      events_count: 100,
+      ingest_keys_count: 2,
+    },
+  };
+}
+
+/**
+ * Creates a mock org detail for /admin/orgs/{orgId} response.
+ */
+export function createMockOrgDetail(overrides: Partial<{
+  id: string;
+  name: string;
+  slug: string | null;
+  external_org_id: string | null;
+  created_at: string;
+  counts: {
+    users_count: number;
+    events_count: number;
+    ingest_keys_count: number;
+  };
+}> = {}) {
+  return createMockOrgListItem(overrides);
+}
+
+/**
+ * Creates a mock org list response for /admin/orgs.
+ */
+export function createMockOrgListResponse(overrides: Partial<{
+  orgs: ReturnType<typeof createMockOrgListItem>[];
+  total: number;
+  limit: number;
+  offset: number;
+}> = {}) {
+  const orgs = overrides.orgs ?? [
+    createMockOrgListItem({ name: 'Org 1', slug: 'org-1' }),
+    createMockOrgListItem({ name: 'Org 2', slug: 'org-2' }),
+  ];
+  return {
+    orgs,
+    total: overrides.total ?? orgs.length,
+    limit: overrides.limit ?? 50,
+    offset: overrides.offset ?? 0,
+  };
+}
+
+/**
+ * Creates a mock revoke keys response.
+ */
+export function createMockRevokeKeysResponse(overrides: Partial<{
+  revoked_count: number;
+}> = {}) {
+  return {
+    revoked_count: overrides.revoked_count ?? 3,
+  };
+}
