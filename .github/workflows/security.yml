@@ -1,0 +1,137 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+jobs:
+  semgrep:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/javascript
+            p/typescript
+            p/nodejs
+            p/security-audit
+            p/secrets
+          generateSarif: false
+        env:
+          # Don't fail on findings - we'll review them manually
+          SEMGREP_RULES: ""
+        continue-on-error: true
+
+      - name: Run Semgrep (JSON output)
+        run: |
+          pip install semgrep
+          mkdir -p security-reports
+
+          # Run scan and output to JSON
+          semgrep scan \
+            --config "p/javascript" \
+            --config "p/typescript" \
+            --config "p/nodejs" \
+            --config "p/security-audit" \
+            --config "p/secrets" \
+            --json \
+            --output security-reports/semgrep-results.json \
+            . || true
+
+          # Also create a human-readable text report
+          semgrep scan \
+            --config "p/javascript" \
+            --config "p/typescript" \
+            --config "p/nodejs" \
+            --config "p/security-audit" \
+            --config "p/secrets" \
+            --text \
+            --output security-reports/semgrep-results.txt \
+            . || true
+
+          # Create a summary CSV
+          echo "severity,rule_id,file,line,message" > security-reports/semgrep-summary.csv
+          if [ -f security-reports/semgrep-results.json ]; then
+            jq -r '.results[] | [.extra.severity, .check_id, .path, .start.line, .extra.message] | @csv' \
+              security-reports/semgrep-results.json >> security-reports/semgrep-summary.csv 2>/dev/null || true
+          fi
+
+          # Print summary to workflow log
+          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f security-reports/semgrep-results.json ]; then
+            TOTAL=$(jq '.results | length' security-reports/semgrep-results.json 2>/dev/null || echo "0")
+            ERROR=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' security-reports/semgrep-results.json 2>/dev/null || echo "0")
+            WARNING=$(jq '[.results[] | select(.extra.severity == "WARNING")] | length' security-reports/semgrep-results.json 2>/dev/null || echo "0")
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 Error | $ERROR |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Warning | $WARNING |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No findings or scan failed to produce results." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the artifact below for full details." >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.sha }}
+          path: security-reports/
+          retention-days: 30
+
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run security audit
+        run: |
+          mkdir -p security-reports
+
+          # Run pnpm audit and capture output
+          pnpm audit --json > security-reports/pnpm-audit.json 2>&1 || true
+          pnpm audit > security-reports/pnpm-audit.txt 2>&1 || true
+
+          # Create summary
+          echo "## Dependency Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          pnpm audit 2>&1 | head -50 >> $GITHUB_STEP_SUMMARY || echo "No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload audit reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.sha }}
+          path: security-reports/
+          retention-days: 30
