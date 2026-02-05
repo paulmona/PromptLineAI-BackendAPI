@@ -23,17 +23,15 @@ pnpm test tests/healthz.test.ts
 
 **Tech Stack**: Fastify + TypeScript + Drizzle ORM + Postgres + Clerk authentication + Nunjucks templates
 
-### Two Auth Flows
+### Authentication
 
-1. **Chrome Extension → `/ingest`**: Uses `X-INGEST-KEY` header. Key is HMAC-hashed with `INGEST_KEY_PEPPER` and looked up in `ingest_keys` table. Org context derived exclusively from the key.
-
-2. **Dashboard → `/summary`, `/me`, etc.**: Uses Clerk Bearer token. Org context resolved from token claims or Clerk API fallback.
+All endpoints use Clerk authentication via Bearer token. Org context is resolved from token claims or Clerk API fallback.
 
 ### Request Flow
 
 ```
 Chrome Extension:
-  POST /ingest + X-INGEST-KEY → validateIngestKey() → org from key → insert events
+  POST /ingest + Bearer token → requireClerkAuth() → resolve org → insert events
 
 Dashboard:
   GET /summary + Bearer token → requireClerkAuth() → resolve org → query data
@@ -45,9 +43,8 @@ Dashboard:
 |------|---------|
 | `src/server.ts` | Fastify setup, route registration, template routes |
 | `src/auth/middleware.ts` | `requireClerkAuth`, `requireOrgAdmin`, `requirePlatformAdmin` |
-| `src/auth/ingest-rate-limit.ts` | Rate limiting for ingest keys |
+| `src/auth/ingest-rate-limit.ts` | Rate limiting per organization |
 | `src/db/queries.ts` | Database queries (org/user/device resolution) |
-| `src/db/ingest-keys.ts` | Ingest key validation and HMAC hashing |
 | `src/validation.ts` | Zod schemas for request validation |
 | `src/routes/*.ts` | Route handlers |
 
@@ -67,7 +64,6 @@ Dashboard:
 - `users` - Users (linked to Clerk users)
 - `devices` - Chrome extension instances
 - `events` - Telemetry events (idempotent via UUID PK)
-- `ingest_keys` - API keys for Chrome extension auth
 
 Device org assignment is immutable - `/ingest` returns 409 if device UUID belongs to different org.
 
