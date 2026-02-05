@@ -174,14 +174,6 @@ fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/policy', async (request:
   }));
 });
 
-fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/key-generation', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
-  const orgSlug = decodeURIComponent(request.params.orgSlug);
-  return (reply as any).view('pages/key-generation.njk', getTemplateContext({
-    showUserControls: true,
-    orgSlug,
-  }));
-});
-
 // User detail route (must be before /:orgSlug/users)
 fastify.get<{ Params: { orgSlug: string; userId: string } }>('/:orgSlug/users/:userId', async (request: FastifyRequest<{ Params: { orgSlug: string; userId: string } }>, reply: FastifyReply) => {
   const orgSlug = decodeURIComponent(request.params.orgSlug);
