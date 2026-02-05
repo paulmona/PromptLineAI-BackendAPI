@@ -98,8 +98,8 @@ await fastify.register(fastifyStatic, {
 });
 
 // Backward-compatible legacy asset paths (temporary guardrail)
-fastify.get('/dashboard.js', async (_request, reply) => reply.redirect(302, '/assets/dashboard.js'));
-fastify.get('/dashboard.css', async (_request, reply) => reply.redirect(302, '/assets/dashboard.css'));
+fastify.get('/dashboard.js', async (_request, reply) => reply.redirect('/assets/dashboard.js', 302));
+fastify.get('/dashboard.css', async (_request, reply) => reply.redirect('/assets/dashboard.css', 302));
 
 // Helper to get common template context
 const getTemplateContext = (overrides: Record<string, any> = {}) => {
