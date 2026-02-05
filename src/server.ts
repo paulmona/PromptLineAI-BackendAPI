@@ -21,7 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const fastify = Fastify({
-  logger,
+  loggerInstance: logger, // Fastify 5.x requires loggerInstance instead of logger
   disableRequestLogging: true, // We'll log manually for /ingest
   bodyLimit: 1_000_000, // 1MB basic anti-abuse limit for /ingest
   genReqId: (req) => (req.headers['x-request-id'] as string)?.trim() || randomUUID(),
@@ -98,8 +98,8 @@ await fastify.register(fastifyStatic, {
 });
 
 // Backward-compatible legacy asset paths (temporary guardrail)
-fastify.get('/dashboard.js', (_request, reply) => reply.code(302).redirect('/assets/dashboard.js'));
-fastify.get('/dashboard.css', (_request, reply) => reply.code(302).redirect('/assets/dashboard.css'));
+fastify.get('/dashboard.js', (_request, reply) => reply.redirect('/assets/dashboard.js', 302));
+fastify.get('/dashboard.css', (_request, reply) => reply.redirect('/assets/dashboard.css', 302));
 
 // Helper to get common template context
 const getTemplateContext = (overrides: Record<string, any> = {}) => {
