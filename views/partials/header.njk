@@ -40,7 +40,43 @@
       {% endif %}
     </div>
   </div>
-  
+
+  {% if orgSlug %}
+  <!-- Desktop Navigation Bar -->
+  <nav class="admin-nav-desktop">
+    <ul class="admin-nav-list">
+      <!-- Dashboard Dropdown -->
+      <li class="admin-nav-item">
+        <div class="admin-dropdown">
+          <button class="admin-dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+            Dashboard
+          </button>
+          <ul class="admin-dropdown-menu">
+            <li><a href="/{{ orgSlug }}/users">Users</a></li>
+          </ul>
+        </div>
+      </li>
+
+      <!-- Settings Dropdown -->
+      <li class="admin-nav-item admin-settings-dropdown" id="admin-desktop-settings">
+        <div class="admin-dropdown">
+          <button class="admin-dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+            Settings
+          </button>
+          <ul class="admin-dropdown-menu">
+            <li><a href="#" id="desktop-account-link">Account</a></li>
+            <li><a href="#" id="desktop-org-profile-link">Org Profile</a></li>
+            <li><a href="/{{ orgSlug }}/policy" id="desktop-policy-link">Policy</a></li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Logout Button -->
+    <button class="admin-nav-logout" id="desktop-logout-btn">Logout</button>
+  </nav>
+  {% endif %}
+
   {% if orgSlug %}
   <div class="header-nav-wrapper">
     {% include "partials/nav.njk" %}

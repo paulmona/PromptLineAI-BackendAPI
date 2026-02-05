@@ -98,8 +98,8 @@ await fastify.register(fastifyStatic, {
 });
 
 // Backward-compatible legacy asset paths (temporary guardrail)
-fastify.get('/dashboard.js', async (_request, reply) => reply.redirect('/assets/dashboard.js', 302));
-fastify.get('/dashboard.css', async (_request, reply) => reply.redirect('/assets/dashboard.css', 302));
+fastify.get('/dashboard.js', (_request, reply) => reply.redirect('/assets/dashboard.js', 302));
+fastify.get('/dashboard.css', (_request, reply) => reply.redirect('/assets/dashboard.css', 302));
 
 // Helper to get common template context
 const getTemplateContext = (overrides: Record<string, any> = {}) => {
@@ -169,14 +169,6 @@ fastify.get('/platform-admin', async (_request, reply: FastifyReply) => {
 fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/policy', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
   const orgSlug = decodeURIComponent(request.params.orgSlug);
   return (reply as any).view('pages/policy.njk', getTemplateContext({
-    showUserControls: true,
-    orgSlug,
-  }));
-});
-
-fastify.get<{ Params: { orgSlug: string } }>('/:orgSlug/key-generation', async (request: FastifyRequest<{ Params: { orgSlug: string } }>, reply: FastifyReply) => {
-  const orgSlug = decodeURIComponent(request.params.orgSlug);
-  return (reply as any).view('pages/key-generation.njk', getTemplateContext({
     showUserControls: true,
     orgSlug,
   }));

@@ -11,11 +11,10 @@
     <li><a href="/{{ orgSlug }}/users">Users</a></li>
     {% if showUserControls %}
     <li class="nav-separator"></li>
-    <li><a href="#" id="nav-account-link" class="nav-account-link">Account</a></li>
-    <li id="nav-settings" class="is-hidden">
+    <li id="nav-settings">
       <button id="nav-settings-toggle" class="nav-settings-toggle" type="button">Settings</button>
       <ul class="nav-settings-submenu is-collapsed">
-        <li><a href="/{{ orgSlug }}/key-generation" id="nav-key-generation-link" class="nav-key-generation-link">Key Generation</a></li>
+        <li><a href="#" id="nav-account-link" class="nav-account-link">Account</a></li>
         <li><a href="#" id="nav-org-profile-link" class="nav-org-profile-link">Org profile</a></li>
         <li><a href="/{{ orgSlug }}/policy" id="nav-policy-link" class="nav-policy-link">Policy</a></li>
       </ul>
