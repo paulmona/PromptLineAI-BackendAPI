@@ -1,0 +1,8 @@
+# Claude GitHub App Configuration
+# This file configures the Claude integration for this repository
+
+# Allow these bots to bypass Claude checks or be treated as trusted
+allowed_bots:
+  - dependabot[bot]
+  - dependabot
+  - github-actions[bot]
