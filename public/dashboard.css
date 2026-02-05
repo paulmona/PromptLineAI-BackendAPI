@@ -316,6 +316,55 @@ body {
   color: #fff;
 }
 
+/* Dropdown Open State */
+.admin-dropdown-menu.is-open {
+  display: block;
+}
+
+/* Focus styles for keyboard navigation (WCAG accessibility) */
+.admin-dropdown-trigger:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+.admin-dropdown-menu a:focus {
+  outline: 2px solid #007bff;
+  outline-offset: -2px;
+  background-color: #e7f3ff;
+}
+
+.admin-dropdown-trigger[aria-expanded="true"]::after {
+  transform: rotate(-135deg);
+  margin-bottom: -2px;
+}
+
+/* Desktop Navigation - Show at 769px and above */
+@media (min-width: 769px) {
+  .admin-nav-desktop {
+    display: flex;
+  }
+
+  /* Hide hamburger on desktop */
+  .hamburger-btn {
+    display: none !important;
+  }
+
+  /* Hide mobile nav overlay on desktop */
+  .header-nav-wrapper {
+    display: none !important;
+  }
+}
+
+/* Mobile Navigation - 768px and below */
+@media (max-width: 768px) {
+  .admin-nav-desktop {
+    display: none !important;
+  }
+
+  /* Hamburger remains visible (existing styles) */
+  /* Mobile nav wrapper remains functional (existing styles) */
+}
+
 /* Organization profile modal (for mountOrganizationProfile fallback) */
 .org-profile-modal {
   position: fixed;

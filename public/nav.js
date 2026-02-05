@@ -181,6 +181,9 @@
     // Show Settings dropdown for admin users
     initAdminSettingsVisibility();
 
+    // Initialize keyboard navigation for accessibility
+    initDropdownKeyboardNav(desktopNav);
+
     // Handle desktop Account link
     var accountLink = desktopNav.querySelector('#desktop-account-link');
     if (accountLink) {
@@ -239,6 +242,89 @@
         }
       });
     }
+  }
+
+  // Keyboard navigation for desktop dropdowns (WCAG accessibility)
+  function initDropdownKeyboardNav(desktopNav) {
+    // Escape key closes open dropdown and returns focus to trigger
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var openDropdown = desktopNav.querySelector('.admin-dropdown-menu.is-open');
+        if (openDropdown) {
+          var trigger = openDropdown.closest('.admin-dropdown').querySelector('.admin-dropdown-trigger');
+          closeAllDropdowns(desktopNav);
+          // Return focus to the trigger that opened the dropdown
+          if (trigger) {
+            trigger.focus();
+          }
+        }
+      }
+    });
+
+    // Enter/Space key on trigger opens dropdown and moves focus to first link
+    var dropdownTriggers = desktopNav.querySelectorAll('.admin-dropdown-trigger');
+    dropdownTriggers.forEach(function(trigger) {
+      trigger.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.click(); // Trigger the existing click handler to toggle dropdown
+
+          // After click, if dropdown is now open, focus first link
+          var dropdown = this.closest('.admin-dropdown');
+          var menu = dropdown.querySelector('.admin-dropdown-menu');
+          if (menu.classList.contains('is-open')) {
+            var firstLink = menu.querySelector('a');
+            if (firstLink) {
+              firstLink.focus();
+            }
+          }
+        }
+      });
+    });
+
+    // Arrow key navigation within open dropdown
+    desktopNav.addEventListener('keydown', function(e) {
+      var openMenu = desktopNav.querySelector('.admin-dropdown-menu.is-open');
+      if (!openMenu) return;
+
+      var menuItems = Array.from(openMenu.querySelectorAll('a'));
+      if (menuItems.length === 0) return;
+
+      var currentIndex = menuItems.indexOf(document.activeElement);
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentIndex < 0) {
+          // Focus first item
+          menuItems[0].focus();
+        } else if (currentIndex < menuItems.length - 1) {
+          // Focus next item
+          menuItems[currentIndex + 1].focus();
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentIndex > 0) {
+          // Focus previous item
+          menuItems[currentIndex - 1].focus();
+        } else if (currentIndex === 0) {
+          // Return to trigger when at first item
+          var trigger = openMenu.closest('.admin-dropdown').querySelector('.admin-dropdown-trigger');
+          if (trigger) {
+            trigger.focus();
+          }
+        }
+      } else if (e.key === 'Tab') {
+        // Close dropdown when tabbing out
+        var lastItem = menuItems[menuItems.length - 1];
+        var firstItem = menuItems[0];
+
+        if (!e.shiftKey && document.activeElement === lastItem) {
+          closeAllDropdowns(desktopNav);
+        } else if (e.shiftKey && document.activeElement === firstItem) {
+          closeAllDropdowns(desktopNav);
+        }
+      }
+    });
   }
 
   // Helper: Close all dropdowns in a nav container
