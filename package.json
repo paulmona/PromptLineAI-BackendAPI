@@ -27,7 +27,7 @@
     "@fastify/view": "^9.0.0",
     "dotenv": "^16.4.1",
     "drizzle-orm": "^0.45.1",
-    "fastify": "^4.26.0",
+    "fastify": "^5.7.3",
     "nunjucks": "^3.2.4",
     "pg": "^8.18.0",
     "pino": "^9.3.0",
