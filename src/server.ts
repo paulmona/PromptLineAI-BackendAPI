@@ -21,7 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const fastify = Fastify({
-  logger,
+  loggerInstance: logger, // Fastify 5.x requires loggerInstance instead of logger
   disableRequestLogging: true, // We'll log manually for /ingest
   bodyLimit: 1_000_000, // 1MB basic anti-abuse limit for /ingest
   genReqId: (req) => (req.headers['x-request-id'] as string)?.trim() || randomUUID(),
