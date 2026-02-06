@@ -44,6 +44,7 @@
   {% if orgSlug %}
   <!-- Desktop Navigation Bar -->
   <nav class="admin-nav-desktop">
+    {% if not isPlatformAdmin %}
     <ul class="admin-nav-list">
       <!-- Dashboard Dropdown -->
       <li class="admin-nav-item">
@@ -71,6 +72,7 @@
         </div>
       </li>
     </ul>
+    {% endif %}
 
     <!-- Logout Button -->
     <button class="admin-nav-logout" id="desktop-logout-btn">Logout</button>
