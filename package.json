@@ -28,7 +28,7 @@
     "@fastify/view": "^11.1.1",
     "dotenv": "^16.4.1",
     "drizzle-orm": "^0.45.1",
-    "fastify": "^5.7.3",
+    "fastify": "^5.7.4",
     "nunjucks": "^3.2.4",
     "pg": "^8.18.0",
     "pino": "^9.3.0",
@@ -36,11 +36,11 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.19.31",
+    "@types/node": "^20.19.33",
     "@types/nunjucks": "^3.2.6",
     "@types/pg": "^8.10.9",
     "@vitest/coverage-v8": "^4.0.18",
-    "ajv": "^8.17.1",
+    "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.0",
