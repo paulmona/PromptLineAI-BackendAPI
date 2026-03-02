@@ -86,7 +86,7 @@ jobs:
           echo "Download the artifact below for full details." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: security-reports-${{ github.sha }}
           path: security-reports/
@@ -130,7 +130,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload audit reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-audit-${{ github.sha }}
           path: security-reports/
