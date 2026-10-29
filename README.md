@@ -1,5 +1,12 @@
 # PromptLineAI Backend API
 
+> **Status:** proof of concept, built January to February 2026, now shelved.
+> PromptLineAI gives an organization visibility into how its people use AI
+> tools without capturing what they type. This repo is the event ingestion API,
+> multi-tenant org and user management (Clerk), and the server-rendered admin
+> dashboard. Events come from the
+> [browser extension](https://github.com/paulmona/PromptLineAI-extension).
+
 Local-first POC backend for PromptLineAI event ingestion and reporting.
 
 ## Tech Stack
